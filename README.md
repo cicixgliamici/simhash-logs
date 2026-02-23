@@ -1,4 +1,4 @@
-# simhash-logs — Near-Duplicate Detection for System Logs (SimHash)
+# simhash-logs - Near-Duplicate Detection for System Logs (SimHash)
 
 This repository implements a practical, engineering-focused reproduction of the core ideas behind SimHash as introduced in:
 
