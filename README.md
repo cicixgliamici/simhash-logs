@@ -2,7 +2,7 @@
 
 This repository implements a practical, engineering-focused reproduction of the core ideas behind SimHash as introduced in:
 
-**Moses Charikar (2002)** — *Similarity Estimation Techniques from Rounding Algorithms* (STOC 2002).  
+**Moses Charikar (2002)** - *Similarity Estimation Techniques from Rounding Algorithms* (STOC 2002).  
 The paper shows how randomized rounding / random hyperplanes can be used to build compact binary fingerprints that preserve similarity (e.g., cosine similarity), enabling efficient near-duplicate detection via Hamming distance.
 
 The goal of this project is to translate the paper’s key concept into a production-oriented prototype for **system log analytics**, with a focus on **observability** and **cybersecurity** use cases.
