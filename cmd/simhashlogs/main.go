@@ -22,6 +22,7 @@ func main() {
 	flag.Parse()
 
 	lines, err := readLines(*inputPath, *maxLines)
+	fmt.Fprintf(os.Stderr, "read %d lines\n", len(lines))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read error: %v\n", err)
 		os.Exit(1)
