@@ -1,0 +1,6 @@
+Mar 21 10:11:01 host-a sshd[8123]: Failed password for invalid user root from 172.16.1.10 port 49821 ssh2
+Mar 21 10:11:03 host-a sshd[8124]: Failed password for invalid user root from 172.16.1.11 port 49822 ssh2
+Mar 21 10:11:06 host-b sshd[9011]: Failed password for invalid user admin from 172.16.1.12 port 49823 ssh2
+Mar 21 10:11:09 host-b sshd[9012]: Failed password for invalid user admin from 172.16.1.13 port 49824 ssh2
+Mar 21 10:12:00 host-c sshd[7777]: Accepted publickey for deploy from 172.16.1.50 port 51111 ssh2
+Mar 21 10:12:05 host-c sudo: pam_unix(sudo:auth): authentication failure; logname= uid=1001 euid=0 tty=/dev/pts/0 ruser=alice rhost=  user=root
