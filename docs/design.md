@@ -1,10 +1,10 @@
-# Design (Step 1)
+# Step 1 Design
+
+## Goal
+
+Build a minimal, correct, and reproducible pipeline for near-duplicate detection on system logs using SimHash.
 
 ## Pipeline
-```mermaid
-flowchart LR
-  A[Raw log line] --> B[Normalize\n<TS>, <IP>, <UUID>, <NUM>, <HEX>]
-  B --> C[Tokenize]
-  C --> D[SimHash64]
-  D --> E[Brute force\npairwise compare]
-  E --> F[Near-duplicate pairs\nHamming <= k]
+
+```text
+read lines -> normalize -> tokenize -> simhash64 -> brute-force search -> print matches
