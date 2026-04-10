@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"simhash-logs/internal/normalize"
+	"simhash-logs/internal/search"
 	"strings"
 	"testing"
-	"simhash-logs/internal/search"
-	"simhash-logs/internal/normalize"
 )
 
 func TestRun_EndToEndTextOutput(t *testing.T) {
@@ -123,7 +123,7 @@ func TestLSHNearDuplicates_MatchesBruteForKLessThan64(t *testing.T) {
 	}
 	k := 2
 
-	got := lshNearDuplicates(sigs, k, k+1)
+	got, _ := lshNearDuplicates(sigs, k, k+1)
 	want := search.BruteNearDuplicates(sigs, k)
 
 	if len(got) != len(want) {
