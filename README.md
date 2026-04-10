@@ -69,6 +69,20 @@ By **normalizing** such fields and computing **SimHash fingerprints**, we can de
 
 ---
 
+## Current Status 
+
+The project is currently between **Step 1 completed** and **Step 2 in progress**.
+
+### Implemented
+- ✅ End-to-end pipeline (ingestion → normalize → tokenize → SimHash64 → matching).
+- ✅ Brute-force baseline for correctness (`O(N²)`).
+- ✅ Unit tests for CLI and core packages, all passing.
+- ✅ In-memory LSH-like candidate generation (`BandIndex`) behind `-use-lsh`.
+- ✅ Deterministic ordering of match output and optional `-limit`.
+- ✅ Basic runtime stats (`records`, `comparisons`, `matches`, `prep_ms`, `search_ms`) with `-quiet-stats` opt-out.
+
+---
+
 ## Repository Structure (high level)
 
 - `cmd/` — CLI entrypoint(s)
@@ -78,12 +92,30 @@ By **normalizing** such fields and computing **SimHash fingerprints**, we can de
 - `internal/search/` — brute-force search (Step 1) and later indexing (Step 2)
 - `examples/` — small example log files
 - `docs/` — design notes, figures, experiment reports
+- `internal/search/` — brute-force search (Step 1) and indexing building blocks (Step 2)
 
 ---
 
 ## Quick Start
 
-Run the Step 1 demo:
+Run tests:
 
 ```bash
-go run ./cmd/simhashlogs -input examples/sample.log -k 6 -max 2000
+go test ./...
+```
+
+Run the CLI on stdin (works without `examples/` files):
+
+```bash
+cat <<'EOF_LOG' | go run ./cmd/simhashlogs -k 6 -max 2000 -json
+2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2
+2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2
+2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps
+EOF_LOG
+```
+
+Try LSH candidate generation + stats:
+
+```bash
+cat logs.txt | go run ./cmd/simhashlogs -k 6 -max 5000 -use-lsh -json
+```
