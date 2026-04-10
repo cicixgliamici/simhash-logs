@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 	
 	"simhash-logs/internal/normalize"
 	"simhash-logs/internal/search"
