@@ -48,31 +48,20 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	sigs := make([]uint64, 0, len(lines))
-	normed := make([]string, 0, len(lines))
-
-	for _, line := range lines {
-		n := normalize.Line(line)
-		toks := tokenize.Simple(n)
-		s := simhash.SimHash64(toks)
-
-		normed = append(normed, n)
-		sigs = append(sigs, s)
-	}
-
-	pairs := search.BruteNearDuplicates(sigs, *k)
+	srecords := buildRecords(lines)
+	pairs := search.BruteNearDuplicates(records, *k)
 
 	if *jsonOut {
 		out := make([]matchOutput, 0, len(pairs))
 		for _, p := range pairs {
 			item := matchOutput{
 				Distance:    p.Distance,
-				NormalizedA: normed[p.I],
-				NormalizedB: normed[p.J],
+				NormalizedA: records[p.I].Normalized,
+				NormalizedB: records[p.J].Normalized,
 			}
 			if *printRaw {
-				item.RawA = lines[p.I]
-				item.RawB = lines[p.J]
+				item.RawA = records[p.I].Raw
+				item.RawB = records[p.J].Raw
 			}
 			out = append(out, item)
 		}
@@ -89,15 +78,34 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	for _, p := range pairs {
 		fmt.Fprintf(stdout, "match (dist=%d)\n", p.Distance)
 		if *printRaw {
-			fmt.Fprintf(stdout, "  A(raw): %s\n", lines[p.I])
-			fmt.Fprintf(stdout, "  B(raw): %s\n", lines[p.J])
+			fmt.Fprintf(stdout, "  A(raw): %s\n", records[p.I].Raw)
+			fmt.Fprintf(stdout, "  B(raw): %s\n", records[p.J].Raw)
 		}
-		fmt.Fprintf(stdout, "  A: %s\n", normed[p.I])
-		fmt.Fprintf(stdout, "  B: %s\n", normed[p.J])
+		fmt.Fprintf(stdout, "  A: %s\n", records[p.I].Normalized)
+		fmt.Fprintf(stdout, "  B: %s\n", records[p.J].Normalized)
 		fmt.Fprintln(stdout)
 	}
 
 	return 0
+}
+
+func buildRecords(lines []string) []search.Record {
+	records := make([]search.Record, 0, len(lines))
+
+	for _, line := range lines {
+		normalized := normalize.Line(line)
+		tokens := tokenize.Simple(normalized)
+		sig := simhash.SimHash64(tokens)
+
+		records = append(records, search.Record{
+			Raw:        line,
+			Normalized: normalized,
+			Tokens:     tokens,
+			Sig:        sig,
+		})
+	}
+
+	return records
 }
 
 func readLines(path string, max int, stdin io.Reader) ([]string, error) {
@@ -125,6 +133,3 @@ func readLines(path string, max int, stdin io.Reader) ([]string, error) {
 		if len(out) >= max {
 			break
 		}
-	}
-	return out, scanner.Err()
-}
