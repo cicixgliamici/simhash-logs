@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"simhash-logs/internal/search"
+	"simhash-logs/internal/normalize"
 )
 
 func TestRun_EndToEndTextOutput(t *testing.T) {
@@ -131,6 +132,104 @@ func TestLSHNearDuplicates_MatchesBruteForKLessThan64(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("pair mismatch at %d: got=%+v want=%+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestRun_JSONOutputSortedAndLimited(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
+
+	lines := []string{
+		"2026-02-21T10:03:00Z sshd[1001]: Failed password for invalid user admin from 10.0.0.1 port 55001 ssh2",
+		"2026-02-21T10:03:01Z sshd[1002]: Failed password for invalid user admin from 10.0.0.2 port 55002 ssh2",
+		"2026-02-21T10:03:02Z sshd[1003]: Failed password for invalid user root from 10.0.0.3 port 55003 ssh2",
+		"2026-02-21T10:03:03Z kernel: eth0 link up at 1000Mbps",
+	}
+	content := strings.Join(lines, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
+	}
+
+	normIndex := make(map[string]int, len(lines))
+	for i, line := range lines {
+		normIndex[normalize.Line(line)] = i
+	}
+
+	var allStdout bytes.Buffer
+	var allStderr bytes.Buffer
+	allCode := run([]string{
+		"-input", path,
+		"-k", "64",
+		"-max", "100",
+		"-json",
+	}, strings.NewReader(""), &allStdout, &allStderr)
+	if allCode != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", allCode, allStderr.String())
+	}
+
+	var allMatches []matchOutput
+	if err := json.Unmarshal(allStdout.Bytes(), &allMatches); err != nil {
+		t.Fatalf("invalid json output: %v\noutput=%s", err, allStdout.String())
+	}
+	if len(allMatches) < 4 {
+		t.Fatalf("expected multiple matches, got %d", len(allMatches))
+	}
+
+	for i := 1; i < len(allMatches); i++ {
+		prev := allMatches[i-1]
+		cur := allMatches[i]
+
+		prevI, ok := normIndex[prev.NormalizedA]
+		if !ok {
+			t.Fatalf("normalized_a not found in source lines: %q", prev.NormalizedA)
+		}
+		prevJ, ok := normIndex[prev.NormalizedB]
+		if !ok {
+			t.Fatalf("normalized_b not found in source lines: %q", prev.NormalizedB)
+		}
+		curI, ok := normIndex[cur.NormalizedA]
+		if !ok {
+			t.Fatalf("normalized_a not found in source lines: %q", cur.NormalizedA)
+		}
+		curJ, ok := normIndex[cur.NormalizedB]
+		if !ok {
+			t.Fatalf("normalized_b not found in source lines: %q", cur.NormalizedB)
+		}
+
+		isOrdered := prev.Distance < cur.Distance ||
+			(prev.Distance == cur.Distance && (prevI < curI ||
+				(prevI == curI && prevJ <= curJ)))
+		if !isOrdered {
+			t.Fatalf("matches not sorted at %d: prev=%+v (i=%d,j=%d), cur=%+v (i=%d,j=%d)",
+				i, prev, prevI, prevJ, cur, curI, curJ)
+		}
+	}
+
+	var limitedStdout bytes.Buffer
+	var limitedStderr bytes.Buffer
+	limit := 3
+	limitedCode := run([]string{
+		"-input", path,
+		"-k", "64",
+		"-max", "100",
+		"-json",
+		"-limit", "3",
+	}, strings.NewReader(""), &limitedStdout, &limitedStderr)
+	if limitedCode != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", limitedCode, limitedStderr.String())
+	}
+
+	var limitedMatches []matchOutput
+	if err := json.Unmarshal(limitedStdout.Bytes(), &limitedMatches); err != nil {
+		t.Fatalf("invalid limited json output: %v\noutput=%s", err, limitedStdout.String())
+	}
+	if len(limitedMatches) != limit {
+		t.Fatalf("expected %d limited matches, got %d", limit, len(limitedMatches))
+	}
+	for i := 0; i < limit; i++ {
+		if limitedMatches[i] != allMatches[i] {
+			t.Fatalf("limited output differs from sorted prefix at %d: got=%+v want=%+v", i, limitedMatches[i], allMatches[i])
 		}
 	}
 }
