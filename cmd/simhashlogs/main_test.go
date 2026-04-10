@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"simhash-logs/internal/search"
 )
 
 func TestRun_EndToEndTextOutput(t *testing.T) {
@@ -108,5 +109,28 @@ func TestReadLines_RespectsMax(t *testing.T) {
 	}
 	if lines[0] != "a" || lines[1] != "b" {
 		t.Fatalf("unexpected lines: %v", lines)
+	}
+}
+
+func TestLSHNearDuplicates_MatchesBruteForKLessThan64(t *testing.T) {
+	sigs := []uint64{
+		0,
+		1, // dist(0,1)=1
+		3, // dist(1,3)=1
+		0xFFFF0000FFFF0000,
+		0xFFFF0000FFFF0001,
+	}
+	k := 2
+
+	got := lshNearDuplicates(sigs, k, k+1)
+	want := search.BruteNearDuplicates(sigs, k)
+
+	if len(got) != len(want) {
+		t.Fatalf("pair count mismatch: got=%d want=%d; got=%v; want=%v", len(got), len(want), got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("pair mismatch at %d: got=%+v want=%+v", i, got[i], want[i])
+		}
 	}
 }
