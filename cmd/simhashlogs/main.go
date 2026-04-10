@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-
+	"sort"
+	
 	"simhash-logs/internal/normalize"
 	"simhash-logs/internal/search"
 	"simhash-logs/internal/simhash"
@@ -36,6 +37,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	maxLines := fs.Int("max", 5000, "Max number of lines to read (keeps brute-force manageable)")
 	printRaw := fs.Bool("print-raw", false, "Print raw lines alongside normalized lines")
 	jsonOut := fs.Bool("json", false, "Print matches as JSON")
+	useLSH := fs.Bool("use-lsh", false, "Use LSH candidate generation before exact Hamming verification")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -50,6 +52,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	srecords := buildRecords(lines)
 	pairs := search.BruteNearDuplicates(records, *k)
+	if *useLSH && *k < 64 {
+		bands := *k + 1
+		pairs = lshNearDuplicates(sigs, *k, bands)
+	}
 
 	if *jsonOut {
 		out := make([]matchOutput, 0, len(pairs))
@@ -106,6 +112,46 @@ func buildRecords(lines []string) []search.Record {
 	}
 
 	return records
+}
+
+func lshNearDuplicates(sigs []uint64, k, bands int) []search.Pair {
+	if len(sigs) == 0 {
+		return nil
+	}
+
+	idx := search.NewBandIndex(bands)
+	pairSeen := make(map[[2]int]struct{})
+	pairs := make([]search.Pair, 0)
+
+	for j, sig := range sigs {
+		for _, i := range idx.Candidates(sig) {
+			if i >= j {
+				continue
+			}
+
+			key := [2]int{i, j}
+			if _, ok := pairSeen[key]; ok {
+				continue
+			}
+
+			d := simhash.HammingDistance64(sigs[i], sig)
+			pairSeen[key] = struct{}{}
+			if d <= k {
+				pairs = append(pairs, search.Pair{I: i, J: j, Distance: d})
+			}
+		}
+
+		idx.Add(sig, j)
+	}
+
+	sort.Slice(pairs, func(a, b int) bool {
+		if pairs[a].I != pairs[b].I {
+			return pairs[a].I < pairs[b].I
+		}
+		return pairs[a].J < pairs[b].J
+	})
+
+	return pairs
 }
 
 func readLines(path string, max int, stdin io.Reader) ([]string, error) {
