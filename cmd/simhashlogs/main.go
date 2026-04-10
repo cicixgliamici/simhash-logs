@@ -9,7 +9,7 @@ import (
 	"os"
 	"sort"
 	"time"
-	
+
 	"simhash-logs/internal/normalize"
 	"simhash-logs/internal/search"
 	"simhash-logs/internal/simhash"
@@ -40,26 +40,53 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	printRaw := fs.Bool("print-raw", false, "Print raw lines alongside normalized lines")
 	jsonOut := fs.Bool("json", false, "Print matches as JSON")
 	useLSH := fs.Bool("use-lsh", false, "Use LSH candidate generation before exact Hamming verification")
+	quietStats := fs.Bool("quiet-stats", false, "Disable stats output on stderr")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
 	lines, err := readLines(*inputPath, *maxLines, stdin)
-	fmt.Fprintf(stderr, "read %d lines\n", len(lines))
 	if err != nil {
 		fmt.Fprintf(stderr, "read error: %v\n", err)
 		return 1
 	}
 
-	srecords := buildRecords(lines)
-	pairs := search.BruteNearDuplicates(records, *k)
+	prepStart := time.Now()
+	records := buildRecords(lines)
+	sigs := make([]uint64, len(records))
+	for i := range records {
+		sigs[i] = records[i].Sig
+	}
+	prepElapsed := time.Since(prepStart)
+
+	searchStart := time.Now()
+	var pairs []search.Pair
+	comparisons := 0
+
+	if *useLSH && *k < 64 {
+		bands := *k + 1
+		pairs, comparisons = lshNearDuplicates(sigs, *k, bands)
+	} else {
+		pairs = search.BruteNearDuplicates(sigs, *k)
+		n := len(sigs)
+		comparisons = n * (n - 1) / 2
+	}
+	searchElapsed := time.Since(searchStart)
+
 	if *limit > 0 && len(pairs) > *limit {
 		pairs = pairs[:*limit]
 	}
-	if *useLSH && *k < 64 {
-		bands := *k + 1
-		pairs = lshNearDuplicates(sigs, *k, bands)
+
+	if !*quietStats {
+		fmt.Fprintf(stderr,
+			"stats records=%d comparisons=%d matches=%d prep_ms=%d search_ms=%d\n",
+			len(records),
+			comparisons,
+			len(pairs),
+			prepElapsed.Milliseconds(),
+			searchElapsed.Milliseconds(),
+		)
 	}
 
 	if *jsonOut {
@@ -85,15 +112,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-
-	for _, p := range pairs {
-		fmt.Fprintf(stdout, "match (dist=%d)\n", p.Distance)
-		if *printRaw {
-			fmt.Fprintf(stdout, "  A(raw): %s\n", records[p.I].Raw)
-			fmt.Fprintf(stdout, "  B(raw): %s\n", records[p.J].Raw)
-		}
-		fmt.Fprintf(stdout, "  A: %s\n", records[p.I].Normalized)
-		fmt.Fprintf(stdout, "  B: %s\n", records[p.J].Normalized)
+@@ -97,90 +124,98 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 	}
 
@@ -119,14 +138,15 @@ func buildRecords(lines []string) []search.Record {
 	return records
 }
 
-func lshNearDuplicates(sigs []uint64, k, bands int) []search.Pair {
+func lshNearDuplicates(sigs []uint64, k, bands int) ([]search.Pair, int) {
 	if len(sigs) == 0 {
-		return nil
+		return nil, 0
 	}
 
 	idx := search.NewBandIndex(bands)
 	pairSeen := make(map[[2]int]struct{})
 	pairs := make([]search.Pair, 0)
+	comparisons := 0
 
 	for j, sig := range sigs {
 		for _, i := range idx.Candidates(sig) {
@@ -139,6 +159,7 @@ func lshNearDuplicates(sigs []uint64, k, bands int) []search.Pair {
 				continue
 			}
 
+			comparisons++
 			d := simhash.HammingDistance64(sigs[i], sig)
 			pairSeen[key] = struct{}{}
 			if d <= k {
@@ -150,13 +171,16 @@ func lshNearDuplicates(sigs []uint64, k, bands int) []search.Pair {
 	}
 
 	sort.Slice(pairs, func(a, b int) bool {
+		if pairs[a].Distance != pairs[b].Distance {
+			return pairs[a].Distance < pairs[b].Distance
+		}
 		if pairs[a].I != pairs[b].I {
 			return pairs[a].I < pairs[b].I
 		}
 		return pairs[a].J < pairs[b].J
 	})
 
-	return pairs
+	return pairs, comparisons
 }
 
 func readLines(path string, max int, stdin io.Reader) ([]string, error) {
@@ -184,3 +208,6 @@ func readLines(path string, max int, stdin io.Reader) ([]string, error) {
 		if len(out) >= max {
 			break
 		}
+	}
+	return out, scanner.Err()
+}
