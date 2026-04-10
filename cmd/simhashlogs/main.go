@@ -36,6 +36,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	inputPath := fs.String("input", "", "Path to a log file (default: stdin)")
 	k := fs.Int("k", 3, "Max Hamming distance threshold for near-duplicates")
 	maxLines := fs.Int("max", 5000, "Max number of lines to read (keeps brute-force manageable)")
+	limit := fs.Int("limit", 0, "Max number of matches to print (0 = no limit)")
 	printRaw := fs.Bool("print-raw", false, "Print raw lines alongside normalized lines")
 	jsonOut := fs.Bool("json", false, "Print matches as JSON")
 	useLSH := fs.Bool("use-lsh", false, "Use LSH candidate generation before exact Hamming verification")
@@ -53,6 +54,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	srecords := buildRecords(lines)
 	pairs := search.BruteNearDuplicates(records, *k)
+	if *limit > 0 && len(pairs) > *limit {
+		pairs = pairs[:*limit]
+	}
 	if *useLSH && *k < 64 {
 		bands := *k + 1
 		pairs = lshNearDuplicates(sigs, *k, bands)
