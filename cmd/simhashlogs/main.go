@@ -40,6 +40,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	printRaw := fs.Bool("print-raw", false, "Print raw lines alongside normalized lines")
 	jsonOut := fs.Bool("json", false, "Print matches as JSON")
 	useLSH := fs.Bool("use-lsh", false, "Use LSH candidate generation before exact Hamming verification")
+	bands := fs.Int("bands", 0, "Number of LSH bands (0 = auto, default auto is k+1)")
 	quietStats := fs.Bool("quiet-stats", false, "Disable stats output on stderr")
 
 	if err := fs.Parse(args); err != nil {
