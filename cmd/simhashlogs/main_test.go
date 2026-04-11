@@ -233,3 +233,43 @@ func TestRun_JSONOutputSortedAndLimited(t *testing.T) {
 		}
 	}
 }
+
+func TestRun_LSHWithCustomBands(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
+
+	content := strings.Join([]string{
+		"2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2",
+		"2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2",
+		"2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{
+		"-input", path,
+		"-k", "6",
+		"-max", "100",
+		"-json",
+		"-use-lsh",
+		"-bands", "4",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+
+	if !strings.Contains(stderr.String(), "mode=lsh") || !strings.Contains(stderr.String(), "bands=4") {
+		t.Fatalf("expected lsh stats with custom bands, got stderr: %q", stderr.String())
+	}
+
+	var matches []matchOutput
+	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
+		t.Fatalf("invalid json output: %v\noutput=%s", err, stdout.String())
+	}
+	if len(matches) == 0 {
+		t.Fatalf("expected at least one match with lsh, got 0")
+	}
+}
