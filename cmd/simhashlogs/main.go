@@ -113,7 +113,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-@@ -97,90 +124,98 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+}
+
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 	}
 
