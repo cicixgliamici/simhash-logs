@@ -40,7 +40,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	printRaw := fs.Bool("print-raw", false, "Print raw lines alongside normalized lines")
 	jsonOut := fs.Bool("json", false, "Print matches as JSON")
 	useLSH := fs.Bool("use-lsh", false, "Use LSH candidate generation before exact Hamming verification")
-	bands := fs.Int("bands", 0, "Number of LSH bands (0 = auto, default auto is k+1)")
+	bandsFlag := fs.Int("bands", 0, "Number of LSH bands (0 = auto, default auto is k+1)")
 	quietStats := fs.Bool("quiet-stats", false, "Disable stats output on stderr")
 
 	if err := fs.Parse(args); err != nil {
@@ -66,7 +66,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	comparisons := 0
 
 	if *useLSH && *k < 64 {
-		bands := *k + 1
+		bands := *bandsFlag
+		if bands == 0 {
+			bands = *k + 1
+		}
 		pairs, comparisons = lshNearDuplicates(sigs, *k, bands)
 	} else {
 		pairs = search.BruteNearDuplicates(sigs, *k)
@@ -113,10 +116,27 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-}
 
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-		fmt.Fprintln(stdout)
+	for _, p := range pairs {
+		if *printRaw {
+			fmt.Fprintf(
+				stdout,
+				"[d=%d]\nA raw:  %s\nB raw:  %s\nA norm: %s\nB norm: %s\n\n",
+				p.Distance,
+				records[p.I].Raw,
+				records[p.J].Raw,
+				records[p.I].Normalized,
+				records[p.J].Normalized,
+			)
+		} else {
+			fmt.Fprintf(
+				stdout,
+				"[d=%d] %s || %s\n",
+				p.Distance,
+				records[p.I].Normalized,
+				records[p.J].Normalized,
+			)
+		}
 	}
 
 	return 0
