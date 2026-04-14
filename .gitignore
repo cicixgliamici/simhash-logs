@@ -27,8 +27,18 @@ coverage.out
 !.vscode/tasks.json
 !.vscode/settings.json
 !.vscode/launch.json
+.vscode/*.code-workspace
+.vscode/*.log
+.vscode/*.tmp
 .idea/
 *.swp
+*.swo
+*~
+
+# Env / local config
+.env
+.env.*
+!.env.example
 
 # OS
 .DS_Store
