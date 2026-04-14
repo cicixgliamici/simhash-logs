@@ -83,8 +83,20 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	if !*quietStats {
+		mode := "brute"
+		bands := 0
+		if *useLSH && *k < 64 {
+			mode = "lsh"
+			if *bandsFlag == 0 {
+				bands = *k + 1
+			} else {
+				bands = *bandsFlag
+			}
+		}
 		fmt.Fprintf(stderr,
-			"stats records=%d comparisons=%d matches=%d prep_ms=%d search_ms=%d\n",
+			"stats mode=%s bands=%d records=%d comparisons=%d matches=%d prep_ms=%d search_ms=%d\n",
+			mode,
+			bands,
 			len(records),
 			comparisons,
 			len(pairs),
@@ -121,7 +133,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if *printRaw {
 			fmt.Fprintf(
 				stdout,
-				"[d=%d]\nA raw:  %s\nB raw:  %s\nA norm: %s\nB norm: %s\n\n",
+				"match (dist=%d)\nA(raw): %s\nB(raw): %s\nA(norm): %s\nB(norm): %s\n\n",
 				p.Distance,
 				records[p.I].Raw,
 				records[p.J].Raw,
@@ -131,7 +143,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		} else {
 			fmt.Fprintf(
 				stdout,
-				"[d=%d] %s || %s\n",
+				"match (dist=%d): %s || %s\n",
 				p.Distance,
 				records[p.I].Normalized,
 				records[p.J].Normalized,
