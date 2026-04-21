@@ -1,6 +1,12 @@
-Mar 21 10:11:01 host-a sshd[8123]: Failed password for invalid user root from 172.16.1.10 port 49821 ssh2
-Mar 21 10:11:03 host-a sshd[8124]: Failed password for invalid user root from 172.16.1.11 port 49822 ssh2
-Mar 21 10:11:06 host-b sshd[9011]: Failed password for invalid user admin from 172.16.1.12 port 49823 ssh2
-Mar 21 10:11:09 host-b sshd[9012]: Failed password for invalid user admin from 172.16.1.13 port 49824 ssh2
-Mar 21 10:12:00 host-c sshd[7777]: Accepted publickey for deploy from 172.16.1.50 port 51111 ssh2
-Mar 21 10:12:05 host-c sudo: pam_unix(sudo:auth): authentication failure; logname= uid=1001 euid=0 tty=/dev/pts/0 ruser=alice rhost=  user=root
+2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2
+2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2
+2026-02-21T10:01:09Z sshd[12347]: Failed password for invalid user admin from 192.168.1.22 port 55223 ssh2
+2026-02-21T10:01:15Z sshd[12348]: Failed password for invalid user admin from 192.168.1.23 port 55224 ssh2
+2026-02-21T10:01:22Z sshd[12349]: Failed password for invalid user root from 192.168.1.24 port 55225 ssh2
+2026-02-21T10:01:29Z sshd[12350]: Failed password for invalid user admin from 192.168.1.25 port 55226 ssh2
+2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps
+2026-02-21T10:02:13Z kernel: eth0 link up at 1000Mbps
+2026-02-21T10:02:55Z nginx[987]: 500 error on GET /api/orders request_id=6f0f3e12-91d6-4c0b-b6a8-7feee5c7e201
+2026-02-21T10:03:03Z nginx[988]: 500 error on GET /api/orders request_id=18c00ecb-dbb7-4ca6-a5bb-11c91ad3a0f2
+2026-02-21T10:03:11Z nginx[989]: 500 error on GET /api/profile request_id=41ac1bca-7790-4902-8dae-b6ce49f7d22f
+2026-02-21T10:03:40Z sudo: pam_unix(sudo:auth): authentication failure; logname= uid=1001 euid=0 tty=/dev/pts/1 ruser=leo rhost=  user=root
