@@ -3,6 +3,7 @@ package simhash
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"math/bits"
 )
 
 // SimHash64 computes a 64-bit SimHash signature from tokens.
@@ -49,13 +50,5 @@ func hash64(s string) uint64 {
 
 // HammingDistance64 counts differing bits between two signatures.
 func HammingDistance64(a, b uint64) int {
-	x := a ^ b
-	// popcount
-	// Using standard bit trick (portable); later we can use bits.OnesCount64.
-	count := 0
-	for x != 0 {
-		x &= x - 1
-		count++
-	}
-	return count
+	return bits.OnesCount64(a ^ b)
 }

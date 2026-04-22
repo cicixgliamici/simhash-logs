@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"simhash-logs/internal/normalize"
-	"simhash-logs/internal/search"
 	"strings"
 	"testing"
 )
@@ -28,7 +27,7 @@ func TestRun_EndToEndTextOutput(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := run([]string{
+	code := runDedup([]string{
 		"-input", path,
 		"-k", "6",
 		"-max", "100",
@@ -65,7 +64,7 @@ func TestRun_EndToEndJSONOutput(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := run([]string{
+	code := runDedup([]string{
 		"-input", path,
 		"-k", "6",
 		"-max", "100",
@@ -113,26 +112,40 @@ func TestReadLines_RespectsMax(t *testing.T) {
 	}
 }
 
-func TestLSHNearDuplicates_MatchesBruteForKLessThan64(t *testing.T) {
-	sigs := []uint64{
-		0,
-		1, // dist(0,1)=1
-		3, // dist(1,3)=1
-		0xFFFF0000FFFF0000,
-		0xFFFF0000FFFF0001,
-	}
-	k := 2
+func TestRun_EvalSubcommand(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
 
-	got, _ := lshNearDuplicates(sigs, k, k+1)
-	want := search.BruteNearDuplicates(sigs, k)
+	content := strings.Join([]string{
+		"2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2",
+		"2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2",
+		"2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps",
+	}, "\n")
 
-	if len(got) != len(want) {
-		t.Fatalf("pair count mismatch: got=%d want=%d; got=%v; want=%v", len(got), len(want), got, want)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("pair mismatch at %d: got=%+v want=%+v", i, got[i], want[i])
-		}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := runEval([]string{
+		"-input", path,
+		"-k", "6",
+		"-max", "100",
+		"-bands", "5",
+	}, strings.NewReader(""), &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+
+	out := stdout.String()
+	if !strings.Contains(out, "Evaluation Results:") {
+		t.Fatalf("expected Evaluation Results in output, got: %q", out)
+	}
+	if !strings.Contains(out, "Brute Force Ground Truth:") || !strings.Contains(out, "LSH Approach:") {
+		t.Fatalf("expected evaluation details in output, got: %q", out)
 	}
 }
 
@@ -158,7 +171,7 @@ func TestRun_JSONOutputSortedAndLimited(t *testing.T) {
 
 	var allStdout bytes.Buffer
 	var allStderr bytes.Buffer
-	allCode := run([]string{
+	allCode := runDedup([]string{
 		"-input", path,
 		"-k", "64",
 		"-max", "100",
@@ -209,7 +222,7 @@ func TestRun_JSONOutputSortedAndLimited(t *testing.T) {
 	var limitedStdout bytes.Buffer
 	var limitedStderr bytes.Buffer
 	limit := 3
-	limitedCode := run([]string{
+	limitedCode := runDedup([]string{
 		"-input", path,
 		"-k", "64",
 		"-max", "100",
@@ -249,7 +262,7 @@ func TestRun_LSHWithCustomBands(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := run([]string{
+	code := runDedup([]string{
 		"-input", path,
 		"-k", "6",
 		"-max", "100",

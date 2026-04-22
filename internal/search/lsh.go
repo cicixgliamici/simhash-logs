@@ -1,6 +1,10 @@
 package search
 
-import "sort"
+import (
+	"sort"
+
+	"simhash-logs/internal/simhash"
+)
 
 // BandIndex stores signatures in multiple band-specific hash buckets.
 type BandIndex struct {
@@ -74,4 +78,52 @@ func (bi *BandIndex) bandKey(sig uint64, band int) uint64 {
 
 	mask := uint64((uint64(1) << bits) - 1)
 	return (sig >> shift) & mask
+}
+
+// LSHNearDuplicates uses a BandIndex to efficiently find pairs of signatures
+// within max Hamming distance k.
+// It returns the list of pairs and the total number of exact Hamming comparisons performed.
+func LSHNearDuplicates(sigs []uint64, k, bands int) ([]Pair, int) {
+	if len(sigs) == 0 {
+		return nil, 0
+	}
+
+	idx := NewBandIndex(bands)
+	pairSeen := make(map[[2]int]struct{})
+	pairs := make([]Pair, 0)
+	comparisons := 0
+
+	for j, sig := range sigs {
+		for _, i := range idx.Candidates(sig) {
+			if i >= j {
+				continue
+			}
+
+			key := [2]int{i, j}
+			if _, ok := pairSeen[key]; ok {
+				continue
+			}
+
+			comparisons++
+			d := simhash.HammingDistance64(sigs[i], sig)
+			pairSeen[key] = struct{}{}
+			if d <= k {
+				pairs = append(pairs, Pair{I: i, J: j, Distance: d})
+			}
+		}
+
+		idx.Add(sig, j)
+	}
+
+	sort.Slice(pairs, func(a, b int) bool {
+		if pairs[a].Distance != pairs[b].Distance {
+			return pairs[a].Distance < pairs[b].Distance
+		}
+		if pairs[a].I != pairs[b].I {
+			return pairs[a].I < pairs[b].I
+		}
+		return pairs[a].J < pairs[b].J
+	})
+
+	return pairs, comparisons
 }
