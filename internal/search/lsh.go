@@ -46,6 +46,8 @@ func (bi *BandIndex) Add(sig uint64, idx int) {
 }
 
 func (bi *BandIndex) Candidates(sig uint64) []int {
+	// A signature can collide with the same prior record in multiple bands.
+	// Deduplicate here so exact verification only sees each candidate once.
 	uniq := make(map[int]struct{})
 	for b := 0; b < bi.Bands; b++ {
 		key := bi.bandKey(sig, b)
@@ -70,6 +72,8 @@ func (bi *BandIndex) bandKey(sig uint64, band int) uint64 {
 
 	bits := bi.BitsPerBand
 	if band == bi.Bands-1 {
+		// The final band owns any remainder bits when 64 is not divisible by
+		// the requested band count.
 		bits = 64 - shift
 	}
 	if bits >= 64 {

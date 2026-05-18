@@ -54,6 +54,8 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var pairs []search.Pair
 	comparisons := 0
 
+	// LSH is a candidate generator only; every candidate is still verified with
+	// exact Hamming distance before it becomes an output match.
 	if *useLSH && *k < 64 {
 		bands := *bandsFlag
 		if bands == 0 {
@@ -71,6 +73,7 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		pairs = pairs[:*limit]
 	}
 
+	// Stats go to stderr so stdout remains machine-readable when -json is set.
 	if !*quietStats {
 		mode := "brute"
 		bands := 0

@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// NOTE: This is intentionally simple for Step 1.
-// In later steps, we’ll make normalization configurable (YAML/JSON rules),
-// and we’ll add domain-specific patterns (paths, emails, MACs, ports, etc.).
+// NOTE: This is intentionally simple for the current prototype.
+// Later iterations can move these patterns into configurable YAML/JSON rules
+// and add domain-specific fields such as paths, emails, MACs, and ports.
 
 var (
 	reISOTime  = regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\b`)
@@ -15,14 +15,14 @@ var (
 	reIPv4     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
 	reUUID     = regexp.MustCompile(`\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b`)
 	reHex      = regexp.MustCompile(`\b0x[0-9a-fA-F]+\b`)
-	reLongNum  = regexp.MustCompile(`\b\d{4,}\b`) // 4+ digits as "often an ID"
+	reLongNum  = regexp.MustCompile(`\b\d{4,}\b`) // 4+ digits are often IDs.
 	reMultiSpc = regexp.MustCompile(`\s+`)
 )
 
 func Line(s string) string {
 	s = strings.TrimSpace(s)
 
-	// Order matters: replace specific patterns first.
+	// Replace specific patterns before broader numeric patterns.
 	s = reISOTime.ReplaceAllString(s, "<TS>")
 	s = reSyslogTS.ReplaceAllString(s, "<TS>")
 	s = reIPv4.ReplaceAllString(s, "<IP>")
@@ -30,7 +30,6 @@ func Line(s string) string {
 	s = reHex.ReplaceAllString(s, "<HEX>")
 	s = reLongNum.ReplaceAllString(s, "<NUM>")
 
-	// Normalize whitespace + lowercase
 	s = strings.ToLower(s)
 	s = reMultiSpc.ReplaceAllString(s, " ")
 	return s

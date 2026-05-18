@@ -1,133 +1,92 @@
-# Normalization Examples — SimHash for Logs
+# Normalization Examples
 
-This document gives a few concrete before/after normalization examples to make the repository easier to review quickly.
+This document shows how noisy operational fields are reduced to placeholders
+before tokenization and SimHash fingerprinting.
 
-The goal is to show how noisy operational fields are reduced to placeholders so that structural similarity becomes easier to detect.
+The goal is to preserve event structure while removing values that commonly
+change from one occurrence to the next.
 
----
+## SSH Authentication Failure
 
-## Example 1 — SSH authentication failure
-
-### Raw line
+Raw:
 
 ```text
 2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2
-````
-
-### Normalized intuition
-
-```text
-<TS> sshd[<NUM>]: Failed password for invalid user admin from <IP> port <NUM> ssh2
 ```
 
-### Why this helps
+Normalized:
 
-The important structure is preserved:
+```text
+<ts> sshd[<num>]: failed password for invalid user admin from <ip> port <num> ssh2
+```
 
-* authentication failure
-* invalid user `admin`
-* SSH context
+The important structure is preserved: SSH context, failed password, invalid
+user, and username. Timestamp, process ID, IP, and port are abstracted away.
 
-The high-variance fields are abstracted away:
+## Repeated SSH Failure With Different Source Values
 
-* timestamp
-* process identifier
-* IP address
-* port number
-
----
-
-## Example 2 — Repeated SSH failure with different source values
-
-### Raw line
+Raw:
 
 ```text
 2026-02-21T10:01:29Z sshd[12350]: Failed password for invalid user admin from 192.168.1.25 port 55226 ssh2
 ```
 
-### Normalized intuition
+Normalized:
 
 ```text
-<TS> sshd[<NUM>]: Failed password for invalid user admin from <IP> port <NUM> ssh2
+<ts> sshd[<num>]: failed password for invalid user admin from <ip> port <num> ssh2
 ```
 
-### Why this helps
+This becomes structurally identical to the previous SSH example, which is why
+the pair should have a very small Hamming distance.
 
-After normalization, this line becomes structurally almost identical to the previous SSH example. That is exactly the kind of relationship the repository is meant to detect as a near-duplicate.
+## Nginx Application Error
 
----
-
-## Example 3 — Nginx application error
-
-### Raw line
+Raw:
 
 ```text
 2026-02-21T10:02:55Z nginx[987]: 500 error on GET /api/orders request_id=6f0f3e12-91d6-4c0b-b6a8-7feee5c7e201
 ```
 
-### Normalized intuition
+Normalized:
 
 ```text
-<TS> nginx[<NUM>]: <NUM> error on GET /api/orders request_id=<UUID>
+<ts> nginx[987]: 500 error on get /api/orders request_id=<uuid>
 ```
 
-### Why this helps
+The endpoint and error pattern remain visible, while the request ID stops
+dominating similarity.
 
-The endpoint and error pattern remain visible, while the request ID and process identifier stop dominating the string representation.
+## Similar Application Error on Another Endpoint
 
----
-
-## Example 4 — Similar application error on another endpoint
-
-### Raw line
+Raw:
 
 ```text
 2026-02-21T10:03:11Z nginx[989]: 500 error on GET /api/profile request_id=41ac1bca-7790-4902-8dae-b6ce49f7d22f
 ```
 
-### Normalized intuition
+Normalized:
 
 ```text
-<TS> nginx[<NUM>]: <NUM> error on GET /api/profile request_id=<UUID>
+<ts> nginx[989]: 500 error on get /api/profile request_id=<uuid>
 ```
 
-### Why this helps
+This should remain related to the `/api/orders` errors, but less strongly than
+two errors on the same endpoint.
 
-This line remains similar to the previous nginx error, but not identical:
+## Kernel Link Message
 
-* same service style
-* same HTTP method
-* same error pattern
-* different endpoint
-
-This is the kind of case where Hamming distance becomes more informative than exact matching.
-
----
-
-## Example 5 — Kernel link message
-
-### Raw line
+Raw:
 
 ```text
 2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps
 ```
 
-### Normalized intuition
+Normalized:
 
 ```text
-<TS> kernel: eth0 link up at <NUM>Mbps
+<ts> kernel: eth0 link up at 1000mbps
 ```
 
-### Why this helps
-
-Repeated operational messages often differ only in timing or small numeric values. Normalization helps group them into stable event patterns.
-
----
-
-## Summary
-
-These examples illustrate the repository’s core engineering idea:
-
-> preserve semantic structure, reduce incidental variance.
-
-That is what makes downstream tokenization, SimHash fingerprinting, and Hamming-distance comparison useful for noisy log streams.
+Repeated operational messages often differ only by time or small numeric values.
+Normalization helps group them into stable event patterns.

@@ -149,6 +149,69 @@ func TestRun_EvalSubcommand(t *testing.T) {
 	}
 }
 
+func TestRun_EvalSweepCSV(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
+
+	content := strings.Join([]string{
+		"2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2",
+		"2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2",
+		"2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runEval([]string{
+		"-input", path,
+		"-k-values", "3,6",
+		"-bands-values", "0,5",
+		"-max", "100",
+		"-csv",
+	}, strings.NewReader(""), &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 5 {
+		t.Fatalf("expected CSV header plus 4 result rows, got %d lines:\n%s", len(lines), stdout.String())
+	}
+	if lines[0] != "k,bands,records,brute_ms,lsh_ms,brute_comps,lsh_comps,total_actual,true_positives,recall_pct,comp_reduction_pct" {
+		t.Fatalf("unexpected CSV header: %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "3,4,") {
+		t.Fatalf("expected auto bands for k=3 to resolve to 4, got first row: %q", lines[1])
+	}
+	if !strings.HasPrefix(lines[2], "3,5,") {
+		t.Fatalf("expected explicit bands=5 row for k=3, got second row: %q", lines[2])
+	}
+	if !strings.HasPrefix(lines[3], "6,7,") {
+		t.Fatalf("expected auto bands for k=6 to resolve to 7, got third row: %q", lines[3])
+	}
+	if !strings.HasPrefix(lines[4], "6,5,") {
+		t.Fatalf("expected explicit bands=5 row for k=6, got fourth row: %q", lines[4])
+	}
+}
+
+func TestRun_EvalRejectsInvalidSweepValues(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runEval([]string{
+		"-k-values", "3,-1",
+	}, strings.NewReader(""), &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "invalid -k-values") {
+		t.Fatalf("expected invalid -k-values error, got stderr=%q", stderr.String())
+	}
+}
+
 func TestRun_JSONOutputSortedAndLimited(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sample.log")

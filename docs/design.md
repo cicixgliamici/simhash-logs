@@ -1,94 +1,93 @@
-# Step 1 Design
+# Design Notes
 
 ## Goal
 
-Build a minimal, correct, and reproducible pipeline for near-duplicate detection on system logs using SimHash.
+Build a minimal, correct, and reproducible near-duplicate detector for system
+logs using SimHash. The design favors clarity first: every optimized path should
+be comparable against a simple brute-force baseline.
 
-## Pipeline
+## Current Pipeline
 
 ```text
-read lines -> normalize -> tokenize -> simhash64 -> brute-force search -> print matches
+read lines -> normalize -> tokenize -> simhash64 -> search -> print matches
 ```
+
+The CLI exposes two commands:
+
+- `dedup` runs the matching pipeline and prints near-duplicate pairs.
+- `eval` compares LSH-style candidate generation against brute-force results.
 
 ## Components
 
 ### `cmd/simhashlogs`
 
-CLI entrypoint.
+The CLI is intentionally thin. It parses flags, reads log lines from stdin or a
+file, builds records, and chooses the search mode.
 
-Responsibilities:
+Important flags:
 
-* read log lines from file or stdin
-* cap input size with `-max`
-* run the full pipeline
-* print near-duplicate pairs within threshold `-k`
+- `-input` reads from a file instead of stdin.
+- `-k` sets the maximum Hamming distance.
+- `-max` caps the number of input lines.
+- `-json` switches output to structured JSON.
+- `-use-lsh` enables candidate generation before exact verification.
+- `-bands` controls the number of LSH bands; `0` means auto.
+- `eval -k-values` and `eval -bands-values` run parameter sweeps.
 
 ### `internal/normalize`
 
-Replaces high-variance fields with placeholders:
+Normalization replaces common high-variance fields with placeholders:
 
-* timestamps -> `<TS>`
-* IPv4 -> `<IP>`
-* UUIDs -> `<UUID>`
-* hex values -> `<HEX>`
-* long numbers -> `<NUM>`
+- timestamps -> `<TS>`
+- IPv4 addresses -> `<IP>`
+- UUIDs -> `<UUID>`
+- hex values -> `<HEX>`
+- long numbers -> `<NUM>`
 
-Also lowercases and compresses whitespace.
+The normalized line is lowercased and whitespace is collapsed.
 
 ### `internal/tokenize`
 
-Splits normalized lines into tokens while preserving placeholders like `<ip>` and `<num>`.
+Tokenization splits normalized lines on non-alphanumeric separators while keeping
+placeholder tokens such as `<ip>` and `<num>`.
 
 ### `internal/simhash`
 
-Computes a 64-bit SimHash signature from tokens.
-Also provides Hamming distance for pair comparison.
+SimHash64 hashes each token, updates a 64-dimensional accumulator, and emits a
+64-bit signature. Repeated tokens contribute repeatedly, so token frequency
+affects the final fingerprint.
 
 ### `internal/search`
 
-Implements the Step 1 baseline:
+The search package contains:
 
-* compare all pairs
-* keep those with distance <= k
+- `BruteNearDuplicates`, the exact `O(N^2)` baseline.
+- `BandIndex`, an in-memory LSH-style candidate index.
+- `LSHNearDuplicates`, which retrieves candidates and then verifies exact
+  Hamming distance.
 
-This is intentionally `O(N^2)` to make correctness easy to validate before introducing indexing.
+## Why Brute Force Still Matters
 
-## Why brute force first
+The brute-force path is the ground truth for small and medium datasets. It keeps
+the project reviewable and makes it possible to measure recall for faster
+candidate-generation strategies.
 
-Step 1 is a correctness baseline.
-Before building LSH buckets or streaming ingestion, we want:
+## Current Limitations
 
-* deterministic behavior
-* simple tests
-* transparent matching logic
-* easy comparison for future indexed implementations
+- The current LSH index is a practical banding prototype, not yet a faithful
+  implementation of the sorted fingerprint-table strategy from Manku et al.
+- Normalization rules are hard-coded.
+- Evaluation is useful but still small; it needs larger datasets and parameter
+  sweeps before performance claims are strong.
+- There is no persistence, streaming ingestion, metrics export, or production
+  deployment story yet.
 
-## Known limitations
+## Useful Commands
 
-* brute-force comparison does not scale
-* normalization is intentionally simple
-* no persistence
-* no streaming ingestion
-* no metrics yet
-
-## Expected next step
-
-Step 2 will introduce bucket-based candidate generation so we can avoid comparing every pair.
-
-## `Makefile`
-
-```make
-.PHONY: test run-sample run-auth fmt
-
-test:
-	go test ./...
-
-run-sample:
-	go run ./cmd/simhashlogs -input examples/sample.log -k 6 -max 2000 -print-raw
-
-run-auth:
-	go run ./cmd/simhashlogs -input examples/auth_failures.log -k 6 -max 2000 -print-raw
-
-fmt:
-	go fmt ./...
+```bash
+go test ./...
+go run ./cmd/simhashlogs dedup -input examples/sample.log -k 6 -max 2000 -print-raw
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k-values 3,6,9 -bands-values 0,5,8 -csv
 ```

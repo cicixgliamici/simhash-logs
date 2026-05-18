@@ -1,100 +1,107 @@
-# simhash-logs - Near-Duplicate Detection for System Logs (SimHash)
+# simhash-logs - Near-Duplicate Detection for System Logs
 
-This repository implements a practical, engineering-focused reproduction of the core ideas behind SimHash as introduced in:
+This repository is an engineering-oriented implementation of SimHash for noisy
+system logs. It is based on the core idea from:
 
-**Moses Charikar (2002)** - *Similarity Estimation Techniques from Rounding Algorithms* (STOC 2002).  
-The paper shows how randomized rounding / random hyperplanes can be used to build compact binary fingerprints that preserve similarity (e.g., cosine similarity), enabling efficient near-duplicate detection via Hamming distance.
+**Moses Charikar (2002)** - *Similarity Estimation Techniques from Rounding Algorithms*
 
-The goal of this project is to translate the paper’s key concept into a production-oriented prototype for **system log analytics**, with a focus on **observability** and **cybersecurity** use cases.
+The project also uses the near-duplicate detection setting from:
 
----
+**Manku, Jain, and Das Sarma (2007)** - *Detecting Near-Duplicates for Web Crawling*
+
+The current goal is not to be a full production log platform yet. It is a
+small, reviewable prototype that turns raw log lines into normalized token
+streams, computes 64-bit SimHash fingerprints, and finds near-duplicate pairs
+with either brute force or an in-memory LSH-style candidate index.
 
 ## Motivation
 
-System logs often contain high-variance fields (timestamps, IPs, ports, request IDs, hex pointers) that make exact matching ineffective.  
-By **normalizing** such fields and computing **SimHash fingerprints**, we can detect repeated patterns and near-duplicate events even when some details differ—useful for:
+System logs often contain high-variance fields such as timestamps, IPs, ports,
+request IDs, process IDs, UUIDs, and hex values. Exact string matching treats
+many repeated events as unrelated because those fields change from line to line.
 
-- authentication failure storms (brute force / password spraying),
-- repeated error patterns during incidents,
-- recurring kernel/network messages across hosts,
-- noisy alert deduplication and log clustering.
+This repository reduces that incidental variance before fingerprinting, so
+similar operational events remain close in Hamming space. The main use cases are:
 
----
+- authentication failure storms and password spraying
+- repeated application or infrastructure errors during incidents
+- recurring kernel/network messages across hosts
+- noisy alert deduplication and log clustering
 
-## Project Plan (3 Steps)
+## Project Status
 
-### Step 1 — Minimal Correct Implementation (MVP)
-**Objective:** implement the full SimHash pipeline and validate correctness on small datasets.
+The project is currently at **Step 1 complete** and **Step 2 partially implemented**.
 
-**Deliverables**
-- Log ingestion (file or stdin)
-- Normalization of common noisy fields:
-  - timestamps, IPv4, UUIDs, long numbers, hex addresses → placeholders (e.g., `<TS>`, `<IP>`, `<UUID>`, `<NUM>`, `<HEX>`)
-- Tokenization (lowercased tokens; placeholders preserved)
-- SimHash **64-bit** fingerprint computation
-- Hamming distance comparison (popcount)
-- Brute-force near-duplicate search (O(N²)) for correctness
-- Unit tests for core components + a small example dataset
+Implemented:
 
-> Step 1 is intentionally brute-force to keep the implementation transparent and verifiable.
+- End-to-end `dedup` pipeline: read logs, normalize, tokenize, fingerprint, match.
+- 64-bit SimHash with token-frequency weighting.
+- Brute-force `O(N^2)` matching as the correctness baseline.
+- In-memory LSH-style band index behind `dedup -use-lsh`.
+- `eval` command comparing LSH output against brute-force ground truth.
+- Evaluation sweeps over multiple `k` and band values with CSV output.
+- JSON and text output, deterministic match ordering, optional `-limit`.
+- Unit and integration tests for the CLI and core packages.
 
----
+Not implemented yet:
 
-### Step 2 — Efficient Indexing (LSH Buckets)
-**Objective:** scale beyond small datasets by replacing brute-force comparisons with candidate generation.
+- Paper-faithful sorted fingerprint tables/permutation index from the web-crawling paper.
+- Persistent index storage.
+- Streaming ingestion.
+- Configurable normalization rules.
+- Larger reproducible benchmark datasets and plots.
+- Metrics export or production observability integrations.
 
-**Deliverables**
-- Banding / bucket-based indexing on SimHash fingerprints (LSH-style)
-- Candidate retrieval via buckets, followed by exact Hamming verification
-- CLI commands to build an index and query it
-- Evaluation harness:
-  - precision/recall vs distance threshold
-  - indexing throughput, query latency, memory usage
-- Reproducible benchmarks (CSV + plots)
+## Roadmap
 
----
+### Step 1 - Minimal Correct Implementation
 
-### Step 3 — Production-Oriented Prototype (Observability + Security)
-**Objective:** make the system usable in realistic pipelines (streaming logs, persistence, metrics).
+Build a transparent correctness baseline:
 
-**Deliverables**
-- Incremental (streaming) ingestion and indexing
-- Persistent storage for fingerprints and buckets (Go-friendly KV/DB)
-- Time-windowed aggregation (e.g., per host/service in 30s windows)
-- Metrics export (e.g., Prometheus) to support monitoring workflows
-- Security/observability use-case demos:
-  - log storm deduplication
-  - near-duplicate clustering for suspicious activity detection
-  - incident pattern surfacing across hosts
+- file/stdin ingestion
+- normalization of common noisy fields into placeholders
+- tokenization with placeholders preserved
+- SimHash64 fingerprinting
+- Hamming distance comparison
+- brute-force near-duplicate search
+- tests and small example datasets
 
----
+Status: **complete**.
 
-## Current Status 
+### Step 2 - Efficient Candidate Generation
 
-The project is currently between **Step 1 completed** and **Step 2 in progress**.
+Reduce the number of exact Hamming comparisons:
 
-### Implemented
-- ✅ End-to-end pipeline (ingestion → normalize → tokenize → SimHash64 → matching).
-- ✅ Brute-force baseline for correctness (`O(N²)`).
-- ✅ Unit tests for CLI and core packages, all passing.
-- ✅ In-memory LSH-like candidate generation (`BandIndex`) behind `-use-lsh`.
-- ✅ Deterministic ordering of match output and optional `-limit`.
-- ✅ Basic runtime stats (`records`, `comparisons`, `matches`, `prep_ms`, `search_ms`) with `-quiet-stats` opt-out.
+- LSH-style bucket candidate generation
+- exact verification after candidate retrieval
+- recall and comparison-count evaluation against brute force
+- benchmark-friendly CSV output
+- larger datasets and parameter sweeps
 
----
+Status: **in progress**. The current `BandIndex` is useful engineering scaffolding,
+but it is not yet a full reproduction of the Manku et al. indexing scheme.
 
-## Repository Structure (high level)
+### Step 3 - Production-Oriented Prototype
 
-- `cmd/` — CLI entrypoint(s)
-- `internal/normalize/` — normalization rules for log lines
-- `internal/tokenize/` — tokenization utilities
-- `internal/simhash/` — SimHash + Hamming distance
-- `internal/search/` — brute-force search (Step 1) and later indexing (Step 2)
-- `examples/` — small example log files
-- `docs/` — design notes, figures, experiment reports
-- `internal/search/` — brute-force search (Step 1) and indexing building blocks (Step 2)
+Make the system usable in realistic log pipelines:
 
----
+- incremental ingestion
+- persistent fingerprint and bucket storage
+- time-windowed grouping
+- metrics export
+- observability and security demos
+
+Status: **not started**.
+
+## Repository Structure
+
+- `cmd/simhashlogs/` - CLI commands: `dedup` and `eval`
+- `internal/normalize/` - log normalization rules
+- `internal/tokenize/` - tokenization utilities
+- `internal/simhash/` - SimHash and Hamming distance
+- `internal/search/` - brute-force search and LSH-style indexing
+- `examples/` - small sample log files
+- `docs/` - design notes, paper mapping, walkthroughs, and expected outputs
 
 ## Quick Start
 
@@ -104,18 +111,36 @@ Run tests:
 go test ./...
 ```
 
-Run the CLI on stdin (works without `examples/` files):
+Run near-duplicate detection on stdin:
 
 ```bash
-cat <<'EOF_LOG' | go run ./cmd/simhashlogs -k 6 -max 2000 -json
+cat <<'EOF_LOG' | go run ./cmd/simhashlogs dedup -k 6 -max 2000 -json
 2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2
 2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2
 2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps
 EOF_LOG
 ```
 
-Try LSH candidate generation + stats:
+Run the included example:
 
 ```bash
-cat logs.txt | go run ./cmd/simhashlogs -k 6 -max 5000 -use-lsh -json
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -json
+```
+
+Try LSH-style candidate generation:
+
+```bash
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
+```
+
+Evaluate LSH against brute-force ground truth:
+
+```bash
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
+```
+
+Run a small parameter sweep as CSV:
+
+```bash
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k-values 3,6,9 -bands-values 0,5,8 -csv
 ```

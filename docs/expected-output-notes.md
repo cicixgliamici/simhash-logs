@@ -1,88 +1,78 @@
-# Expected Output Notes — SimHash Log Demo
+# Expected Output Notes - SimHash Log Demo
 
-This note explains what a reviewer should expect, conceptually, when running the example log file through the CLI.
+This note explains what a reviewer should expect when running the example log
+file through the CLI. It focuses on behavior rather than exact formatting.
 
-It is intentionally descriptive rather than tied to one exact output format, because the repository may evolve while keeping the same core behavior.
+## Example Commands
 
----
-
-## Example command
-
-```bash
-cat examples/auth-failures.log | go run ./cmd/simhashlogs -k 6 -max 2000 -json
-````
-
-If LSH-style candidate generation is enabled:
+Brute-force baseline:
 
 ```bash
-cat examples/auth-failures.log | go run ./cmd/simhashlogs -k 6 -max 2000 -use-lsh -json
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -json
 ```
 
----
+LSH-style candidate generation:
 
-## What a reviewer should expect conceptually
+```bash
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
+```
 
-A good run on the example input should show behavior of the following kind:
+Evaluation against brute force:
 
-### 1. SSH authentication failures should cluster
+```bash
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
+```
 
-Several lines describing failed SSH logins for an invalid user should appear as close matches or near-duplicates.
+CSV parameter sweep:
 
-They differ mainly in:
+```bash
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k-values 3,6,9 -bands-values 0,5,8 -csv
+```
 
-* timestamp
-* process ID
-* IP address
-* port number
+## Expected Match Patterns
 
-So after normalization and SimHash fingerprinting, they should remain close in Hamming space.
+### 1. SSH authentication failures cluster
 
----
+Several failed SSH login lines should appear as close matches. They differ mainly
+in timestamp, process ID, IP address, and port number, so normalization makes
+them identical or nearly identical before fingerprinting.
 
-### 2. Kernel link-up messages should be very close or identical
+### 2. Kernel link-up messages are very close
 
-The repeated kernel messages should likely become exact duplicates or near-exact duplicates after normalization.
+Repeated kernel link messages should become exact or near-exact duplicates after
+normalization. This is the simplest sanity check in the sample.
 
-This is the simplest sanity-check cluster in the example.
+### 3. Nginx 500 errors on the same endpoint match closely
 
----
+The repeated `/api/orders` errors should appear as a near-duplicate pair because
+the endpoint and error shape are preserved while the request IDs are normalized.
 
-### 3. Nginx 500 errors on the same endpoint should be related
+### 4. Nginx errors on different endpoints are weaker matches
 
-The repeated `/api/orders` errors should appear as a near-duplicate pair because they preserve the same structural event pattern while changing only high-variance request identifiers.
+The `/api/profile` error should look more similar to the other nginx errors than
+to SSH or kernel lines, but weaker than the two `/api/orders` lines.
 
----
+### 5. The sudo authentication failure is mostly isolated
 
-### 4. The `/api/profile` error should be related, but less strongly
+The sudo line is security-related, but its token structure differs enough from
+the SSH failures that it should not collapse into the main SSH cluster.
 
-The `/api/profile` error should still look more similar to the other nginx 500 errors than to the SSH or kernel messages, but it should generally be a weaker match than the two `/api/orders` lines are to each other.
+## Current Example Evaluation
 
----
+On the current sample with `k=6`, `eval` reports the LSH-style search matching
+the brute-force result set while doing fewer exact comparisons:
 
-### 5. The sudo authentication failure should remain relatively isolated
+```text
+Records:           12
+Distance (k):      6
+LSH Bands:         7
+Brute matches:     17
+Brute comparisons: 66
+LSH matches:       17
+LSH comparisons:   22
+Recall:            100.00%
+```
 
-This line should not collapse into the SSH failure cluster even though both concern authentication. Its surface structure and token composition are sufficiently different that it should appear as an outlier or much weaker match.
-
----
-
-## What this demonstrates
-
-The example is useful because it highlights three different cases:
-
-* **strong near-duplicates**
-  repeated SSH failures, repeated kernel lines, repeated nginx errors on the same endpoint
-
-* **moderate similarity**
-  nginx errors on different endpoints
-
-* **clear outliers**
-  an unrelated authentication-related line with different structure
-
-This is exactly the kind of distribution one wants in a practical near-duplicate detection system.
-
----
-
-## Good follow-up improvement
-
-A strong future addition would be to include one real sample output block from the CLI, annotated line by line to explain why the matches make sense.
-
+This is a small sanity check, not a benchmark claim. The new `-k-values` and
+`-bands-values` sweep flags make it easier to collect comparison rows, but larger
+datasets are still needed before making performance claims.
