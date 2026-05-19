@@ -15,7 +15,7 @@ read lines -> normalize -> tokenize -> simhash64 -> search -> print matches
 The CLI exposes two commands:
 
 - `dedup` runs the matching pipeline and prints near-duplicate pairs.
-- `eval` compares LSH-style candidate generation against brute-force results.
+- `eval` compares candidate-generation indexes against brute-force results.
 
 ## Components
 
@@ -30,9 +30,11 @@ Important flags:
 - `-k` sets the maximum Hamming distance.
 - `-max` caps the number of input lines.
 - `-json` switches output to structured JSON.
-- `-use-lsh` enables candidate generation before exact verification.
+- `-use-lsh` enables LSH candidate generation before exact verification.
+- `-index` selects `brute`, `lsh`, or `paper` search for `dedup`.
 - `-bands` controls the number of LSH bands; `0` means auto.
-- `eval -k-values` and `eval -bands-values` run parameter sweeps.
+- `-tables` and `-window` tune the paper-style sorted permutation index.
+- `eval -k-values`, `eval -index-values`, and `eval -bands-values` run parameter sweeps.
 
 ### `internal/normalize`
 
@@ -65,6 +67,10 @@ The search package contains:
 - `BandIndex`, an in-memory LSH-style candidate index.
 - `LSHNearDuplicates`, which retrieves candidates and then verifies exact
   Hamming distance.
+- `PermutationIndex`, an experimental sorted fingerprint-table index inspired
+  by Manku et al.
+- `PaperNearDuplicates`, which scans sorted-table neighborhoods and then
+  verifies exact Hamming distance.
 
 ## Why Brute Force Still Matters
 
@@ -74,11 +80,11 @@ candidate-generation strategies.
 
 ## Current Limitations
 
-- The current LSH index is a practical banding prototype, not yet a faithful
-  implementation of the sorted fingerprint-table strategy from Manku et al.
+- The paper-style index is intentionally small and in-memory; it demonstrates
+  sorted permutation tables but is not disk-backed or web-scale.
 - Normalization rules are hard-coded.
-- Evaluation is useful but still small; it needs larger datasets and parameter
-  sweeps before performance claims are strong.
+- Evaluation is reproducible on included samples, but still needs external
+  corpora and plots before performance claims are strong.
 - There is no persistence, streaming ingestion, metrics export, or production
   deployment story yet.
 
@@ -88,6 +94,8 @@ candidate-generation strategies.
 go test ./...
 go run ./cmd/simhashlogs dedup -input examples/sample.log -k 6 -max 2000 -print-raw
 go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -index paper -json
 go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
 go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k-values 3,6,9 -bands-values 0,5,8 -csv
+go run ./cmd/simhashlogs eval -input examples/synthetic_benchmark.log -k-values 3,6 -bands-values 0,8 -csv
 ```

@@ -1,10 +1,6 @@
 package search
 
-import (
-	"sort"
-
-	"simhash-logs/internal/simhash"
-)
+import "simhash-logs/internal/simhash"
 
 type Pair struct {
 	I, J     int
@@ -26,15 +22,6 @@ func BruteNearDuplicates(sigs []uint64, k int) []Pair {
 		}
 	}
 
-	sort.Slice(out, func(a, b int) bool {
-		if out[a].Distance != out[b].Distance {
-			return out[a].Distance < out[b].Distance
-		}
-		if out[a].I != out[b].I {
-			return out[a].I < out[b].I
-		}
-		return out[a].J < out[b].J
-	})
-
+	sortPairs(out)
 	return out
 }

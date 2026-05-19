@@ -1,0 +1,36 @@
+2026-02-21T10:00:01Z sshd[12001]: Failed password for invalid user admin from 10.10.0.1 port 55001 ssh2
+2026-02-21T10:00:02Z sshd[12002]: Failed password for invalid user admin from 10.10.0.2 port 55002 ssh2
+2026-02-21T10:00:03Z sshd[12003]: Failed password for invalid user admin from 10.10.0.3 port 55003 ssh2
+2026-02-21T10:00:04Z sshd[12004]: Failed password for invalid user root from 10.10.0.4 port 55004 ssh2
+2026-02-21T10:00:05Z sshd[12005]: Failed password for invalid user root from 10.10.0.5 port 55005 ssh2
+2026-02-21T10:00:06Z sshd[12006]: Failed password for invalid user deploy from 10.10.0.6 port 55006 ssh2
+2026-02-21T10:01:01Z kernel: eth0 link up at 1000Mbps full duplex
+2026-02-21T10:01:02Z kernel: eth0 link up at 1000Mbps full duplex
+2026-02-21T10:01:03Z kernel: eth1 link up at 1000Mbps full duplex
+2026-02-21T10:01:04Z kernel: eth1 link down
+2026-02-21T10:01:05Z kernel: eth1 link down
+2026-02-21T10:01:06Z kernel: eth2 link up at 100Mbps half duplex
+2026-02-21T10:02:01Z nginx[3001]: request_id=7f1a upstream timed out while connecting to 172.16.1.10 path=/api/orders status=500
+2026-02-21T10:02:02Z nginx[3002]: request_id=7f1b upstream timed out while connecting to 172.16.1.11 path=/api/orders status=500
+2026-02-21T10:02:03Z nginx[3003]: request_id=7f1c upstream timed out while connecting to 172.16.1.12 path=/api/orders status=500
+2026-02-21T10:02:04Z nginx[3004]: request_id=7f1d upstream timed out while connecting to 172.16.1.13 path=/api/profile status=500
+2026-02-21T10:02:05Z nginx[3005]: request_id=7f1e upstream reset while reading response header path=/api/orders status=502
+2026-02-21T10:02:06Z nginx[3006]: request_id=7f1f upstream reset while reading response header path=/api/orders status=502
+2026-02-21T10:03:01Z app[4101]: payment worker retry invoice=900001 customer=81001 reason=timeout
+2026-02-21T10:03:02Z app[4102]: payment worker retry invoice=900002 customer=81002 reason=timeout
+2026-02-21T10:03:03Z app[4103]: payment worker retry invoice=900003 customer=81003 reason=timeout
+2026-02-21T10:03:04Z app[4104]: payment worker failed invoice=900004 customer=81004 reason=declined
+2026-02-21T10:03:05Z app[4105]: inventory worker retry sku=ABC-100 warehouse=eu-west reason=lock-timeout
+2026-02-21T10:03:06Z app[4106]: inventory worker retry sku=ABC-101 warehouse=eu-west reason=lock-timeout
+2026-02-21T10:04:01Z postgres[5101]: deadlock detected process 9101 waits for ShareLock on transaction 101001
+2026-02-21T10:04:02Z postgres[5102]: deadlock detected process 9102 waits for ShareLock on transaction 101002
+2026-02-21T10:04:03Z postgres[5103]: deadlock detected process 9103 waits for ShareLock on transaction 101003
+2026-02-21T10:04:04Z postgres[5104]: checkpoint complete wrote 1821 buffers
+2026-02-21T10:04:05Z postgres[5105]: checkpoint complete wrote 1833 buffers
+2026-02-21T10:04:06Z postgres[5106]: autovacuum launcher started
+2026-02-21T10:05:01Z backup[6001]: completed snapshot host=db01 bytes=883920112 duration_ms=8210
+2026-02-21T10:05:02Z backup[6002]: completed snapshot host=db02 bytes=883920556 duration_ms=8288
+2026-02-21T10:05:03Z backup[6003]: failed snapshot host=db03 bytes=0 duration_ms=420 reason=permission
+2026-02-21T10:06:01Z cron[7001]: started daily cleanup job
+2026-02-21T10:06:02Z cron[7002]: finished daily cleanup job status=0
+2026-02-21T10:07:01Z audit[8001]: user alice changed password from console tty1

@@ -119,15 +119,6 @@ func LSHNearDuplicates(sigs []uint64, k, bands int) ([]Pair, int) {
 		idx.Add(sig, j)
 	}
 
-	sort.Slice(pairs, func(a, b int) bool {
-		if pairs[a].Distance != pairs[b].Distance {
-			return pairs[a].Distance < pairs[b].Distance
-		}
-		if pairs[a].I != pairs[b].I {
-			return pairs[a].I < pairs[b].I
-		}
-		return pairs[a].J < pairs[b].J
-	})
-
+	sortPairs(pairs)
 	return pairs, comparisons
 }

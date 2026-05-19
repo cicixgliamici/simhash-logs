@@ -17,6 +17,12 @@ LSH-style candidate generation:
 go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
 ```
 
+Paper-style sorted permutation index:
+
+```bash
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -index paper -json
+```
+
 Evaluation against brute force:
 
 ```bash
@@ -27,6 +33,12 @@ CSV parameter sweep:
 
 ```bash
 go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k-values 3,6,9 -bands-values 0,5,8 -csv
+```
+
+Synthetic benchmark sweep:
+
+```bash
+go run ./cmd/simhashlogs eval -input examples/synthetic_benchmark.log -k-values 3,6 -bands-values 0,8 -csv
 ```
 
 ## Expected Match Patterns
@@ -59,20 +71,28 @@ the SSH failures that it should not collapse into the main SSH cluster.
 
 ## Current Example Evaluation
 
-On the current sample with `k=6`, `eval` reports the LSH-style search matching
-the brute-force result set while doing fewer exact comparisons:
+On the current sample with `k=6`, `eval` reports both candidate indexes against
+the brute-force result set. The LSH-style search matches the brute-force result
+set while doing fewer exact comparisons:
 
 ```text
 Records:           12
 Distance (k):      6
+Index:             lsh
 LSH Bands:         7
 Brute matches:     17
 Brute comparisons: 66
-LSH matches:       17
-LSH comparisons:   22
+Index matches:     17
+Index comparisons: 22
 Recall:            100.00%
 ```
 
+The paper-style sorted permutation index is intentionally experimental. With
+the default `k=6` settings on the tiny sample, it prioritizes recall and may do
+all 66 exact comparisons. On `examples/synthetic_benchmark.log`, the same CSV
+evaluation gives a reproducible larger sanity check; for example `k=3` currently
+shows 31 true pairs, 100% LSH recall, and a large comparison-count reduction.
+
 This is a small sanity check, not a benchmark claim. The new `-k-values` and
-`-bands-values` sweep flags make it easier to collect comparison rows, but larger
-datasets are still needed before making performance claims.
+`-bands-values` sweep flags make it easier to collect comparison rows, but
+external datasets and plots are still needed before making performance claims.

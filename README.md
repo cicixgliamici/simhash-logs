@@ -12,7 +12,8 @@ The project also uses the near-duplicate detection setting from:
 The current goal is not to be a full production log platform yet. It is a
 small, reviewable prototype that turns raw log lines into normalized token
 streams, computes 64-bit SimHash fingerprints, and finds near-duplicate pairs
-with either brute force or an in-memory LSH-style candidate index.
+with brute force, an in-memory LSH-style candidate index, or an experimental
+paper-style sorted permutation index.
 
 ## Motivation
 
@@ -30,26 +31,28 @@ similar operational events remain close in Hamming space. The main use cases are
 
 ## Project Status
 
-The project is currently at **Step 1 complete** and **Step 2 partially implemented**.
+The project is currently at **Step 1 complete** and **Step 2 complete as a
+reviewable candidate-generation prototype**.
 
 Implemented:
 
 - End-to-end `dedup` pipeline: read logs, normalize, tokenize, fingerprint, match.
 - 64-bit SimHash with token-frequency weighting.
 - Brute-force `O(N^2)` matching as the correctness baseline.
-- In-memory LSH-style band index behind `dedup -use-lsh`.
-- `eval` command comparing LSH output against brute-force ground truth.
-- Evaluation sweeps over multiple `k` and band values with CSV output.
+- In-memory LSH-style band index behind `dedup -use-lsh` or `dedup -index lsh`.
+- Experimental sorted permutation-table index behind `dedup -index paper`.
+- `eval` command comparing candidate indexes against brute-force ground truth.
+- Evaluation sweeps over multiple `k`, index, and parameter values with CSV output.
 - JSON and text output, deterministic match ordering, optional `-limit`.
+- Reproducible synthetic benchmark log sample.
 - Unit and integration tests for the CLI and core packages.
 
 Not implemented yet:
 
-- Paper-faithful sorted fingerprint tables/permutation index from the web-crawling paper.
 - Persistent index storage.
 - Streaming ingestion.
 - Configurable normalization rules.
-- Larger reproducible benchmark datasets and plots.
+- Larger external benchmark datasets and plots.
 - Metrics export or production observability integrations.
 
 ## Roadmap
@@ -77,9 +80,12 @@ Reduce the number of exact Hamming comparisons:
 - recall and comparison-count evaluation against brute force
 - benchmark-friendly CSV output
 - larger datasets and parameter sweeps
+- experimental sorted fingerprint-table/permutation index inspired by Manku et al.
 
-Status: **in progress**. The current `BandIndex` is useful engineering scaffolding,
-but it is not yet a full reproduction of the Manku et al. indexing scheme.
+Status: **complete for this prototype**. `BandIndex` remains the practical LSH
+baseline, while `PermutationIndex` provides a small paper-style sorted-table
+implementation for comparison. Both are still in-memory and verified against
+brute force.
 
 ### Step 3 - Production-Oriented Prototype
 
@@ -99,7 +105,7 @@ Status: **not started**.
 - `internal/normalize/` - log normalization rules
 - `internal/tokenize/` - tokenization utilities
 - `internal/simhash/` - SimHash and Hamming distance
-- `internal/search/` - brute-force search and LSH-style indexing
+- `internal/search/` - brute-force search, LSH-style indexing, and sorted permutation indexing
 - `examples/` - small sample log files
 - `docs/` - design notes, paper mapping, walkthroughs, and expected outputs
 
@@ -133,7 +139,13 @@ Try LSH-style candidate generation:
 go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
 ```
 
-Evaluate LSH against brute-force ground truth:
+Try the paper-style sorted permutation index:
+
+```bash
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -index paper -json
+```
+
+Evaluate candidate indexes against brute-force ground truth:
 
 ```bash
 go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
@@ -143,4 +155,10 @@ Run a small parameter sweep as CSV:
 
 ```bash
 go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k-values 3,6,9 -bands-values 0,5,8 -csv
+```
+
+Run the synthetic benchmark sample:
+
+```bash
+go run ./cmd/simhashlogs eval -input examples/synthetic_benchmark.log -k-values 3,6 -bands-values 0,8 -csv
 ```

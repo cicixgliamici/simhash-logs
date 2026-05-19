@@ -144,7 +144,7 @@ func TestRun_EvalSubcommand(t *testing.T) {
 	if !strings.Contains(out, "Evaluation Results:") {
 		t.Fatalf("expected Evaluation Results in output, got: %q", out)
 	}
-	if !strings.Contains(out, "Brute Force Ground Truth:") || !strings.Contains(out, "LSH Approach:") {
+	if !strings.Contains(out, "Brute Force Ground Truth:") || !strings.Contains(out, "lsh Approach:") || !strings.Contains(out, "paper Approach:") {
 		t.Fatalf("expected evaluation details in output, got: %q", out)
 	}
 }
@@ -177,23 +177,110 @@ func TestRun_EvalSweepCSV(t *testing.T) {
 	}
 
 	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
-	if len(lines) != 5 {
-		t.Fatalf("expected CSV header plus 4 result rows, got %d lines:\n%s", len(lines), stdout.String())
+	if len(lines) != 7 {
+		t.Fatalf("expected CSV header plus 6 result rows, got %d lines:\n%s", len(lines), stdout.String())
 	}
-	if lines[0] != "k,bands,records,brute_ms,lsh_ms,brute_comps,lsh_comps,total_actual,true_positives,recall_pct,comp_reduction_pct" {
+	if lines[0] != "index,k,bands,tables,window,records,brute_ms,index_ms,brute_comps,index_comps,total_actual,index_matches,true_positives,recall_pct,comp_reduction_pct" {
 		t.Fatalf("unexpected CSV header: %q", lines[0])
 	}
-	if !strings.HasPrefix(lines[1], "3,4,") {
+	if !strings.HasPrefix(lines[1], "lsh,3,4,") {
 		t.Fatalf("expected auto bands for k=3 to resolve to 4, got first row: %q", lines[1])
 	}
-	if !strings.HasPrefix(lines[2], "3,5,") {
+	if !strings.HasPrefix(lines[2], "lsh,3,5,") {
 		t.Fatalf("expected explicit bands=5 row for k=3, got second row: %q", lines[2])
 	}
-	if !strings.HasPrefix(lines[3], "6,7,") {
-		t.Fatalf("expected auto bands for k=6 to resolve to 7, got third row: %q", lines[3])
+	if !strings.HasPrefix(lines[3], "paper,3,0,4,3,") {
+		t.Fatalf("expected paper row for k=3, got third row: %q", lines[3])
 	}
-	if !strings.HasPrefix(lines[4], "6,5,") {
-		t.Fatalf("expected explicit bands=5 row for k=6, got fourth row: %q", lines[4])
+	if !strings.HasPrefix(lines[4], "lsh,6,7,") {
+		t.Fatalf("expected auto bands for k=6 to resolve to 7, got fourth row: %q", lines[4])
+	}
+	if !strings.HasPrefix(lines[5], "lsh,6,5,") {
+		t.Fatalf("expected explicit bands=5 row for k=6, got fifth row: %q", lines[5])
+	}
+}
+
+func TestRun_DedupWithPaperIndex(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
+
+	content := strings.Join([]string{
+		"2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2",
+		"2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2",
+		"2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runDedup([]string{
+		"-input", path,
+		"-k", "6",
+		"-max", "100",
+		"-json",
+		"-index", "paper",
+		"-tables", "7",
+		"-window", "12",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "mode=paper") || !strings.Contains(stderr.String(), "tables=7") {
+		t.Fatalf("expected paper stats, got stderr: %q", stderr.String())
+	}
+
+	var matches []matchOutput
+	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
+		t.Fatalf("invalid json output: %v\noutput=%s", err, stdout.String())
+	}
+	if len(matches) == 0 {
+		t.Fatalf("expected at least one match with paper index, got 0")
+	}
+}
+
+func TestRun_DedupRejectsInvalidIndex(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := runDedup([]string{
+		"-index", "unknown",
+	}, strings.NewReader("line\n"), &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "index must be one of") {
+		t.Fatalf("expected invalid index error, got stderr=%q", stderr.String())
+	}
+}
+
+func TestRun_DedupRejectsNegativePaperParameters(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "bands", args: []string{"-bands", "-1"}, want: "invalid -bands"},
+		{name: "tables", args: []string{"-tables", "-1"}, want: "invalid -tables"},
+		{name: "window", args: []string{"-window", "-1"}, want: "invalid -window"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+
+			code := runDedup(tt.args, strings.NewReader("line\n"), &stdout, &stderr)
+
+			if code != 2 {
+				t.Fatalf("expected exit code 2, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			if !strings.Contains(stderr.String(), tt.want) {
+				t.Fatalf("expected %q in stderr, got %q", tt.want, stderr.String())
+			}
+		})
 	}
 }
 

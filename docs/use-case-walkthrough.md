@@ -87,10 +87,22 @@ Run the same example with LSH-style candidate generation:
 go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
 ```
 
-Compare LSH-style search against brute force:
+Run the paper-style sorted permutation index:
+
+```bash
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -index paper -json
+```
+
+Compare candidate indexes against brute force:
 
 ```bash
 go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
+```
+
+Collect CSV rows from the reproducible synthetic benchmark:
+
+```bash
+go run ./cmd/simhashlogs eval -input examples/synthetic_benchmark.log -k-values 3,6 -bands-values 0,8 -csv
 ```
 
 ## What This Demonstrates
