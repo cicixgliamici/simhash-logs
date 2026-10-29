@@ -37,10 +37,11 @@ reviewable candidate-generation prototype**.
 Implemented:
 
 - End-to-end `dedup` pipeline: read logs, normalize, tokenize, fingerprint, match.
-- 64-bit SimHash with token-frequency weighting.
+- 64-bit SimHash with configurable token weighting: uniform frequency (baseline) or learned corpus TF-IDF (`-weighting idf`).
 - Brute-force `O(N^2)` matching as the correctness baseline.
 - In-memory LSH-style band index behind `dedup -use-lsh` or `dedup -index lsh`.
-- Experimental sorted permutation-table index behind `dedup -index paper`.
+- Historical sorted permutation-table prototype (v1 heuristic) behind `dedup -index paper` (or `paper-v1`).
+- Paper-rigorous Manku et al. (2007) Pigeonhole prefix index behind `dedup -index manku`.
 - `eval` command comparing candidate indexes against brute-force ground truth.
 - Evaluation sweeps over multiple `k`, index, and parameter values with CSV output.
 - JSON and text output, deterministic match ordering, optional `-limit`.
@@ -139,16 +140,22 @@ Try LSH-style candidate generation:
 go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -use-lsh -json
 ```
 
-Try the paper-style sorted permutation index:
+Try the paper-faithful Manku et al. (2007) Pigeonhole prefix index:
+
+```bash
+go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -index manku -json
+```
+
+Try the historical v1 heuristic permutation index:
 
 ```bash
 go run ./cmd/simhashlogs dedup -input examples/auth_failures.log -k 6 -max 2000 -index paper -json
 ```
 
-Evaluate candidate indexes against brute-force ground truth:
+Evaluate candidate indexes against brute-force ground truth (comparing LSH, v1 Heuristic, and Manku Pigeonhole):
 
 ```bash
-go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -max 2000
+go run ./cmd/simhashlogs eval -input examples/auth_failures.log -k 6 -index-values lsh,paper,manku -max 2000
 ```
 
 Run a small parameter sweep as CSV:

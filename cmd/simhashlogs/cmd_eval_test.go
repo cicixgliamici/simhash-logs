@@ -117,12 +117,36 @@ func TestEvaluateIndex_ComputesPaperRecall(t *testing.T) {
 	}
 }
 
+func TestEvaluateIndex_ComputesMankuRecall(t *testing.T) {
+	sigs := []uint64{
+		0,
+		1,
+		3,
+		7,
+	}
+
+	result := evaluateIndex(sigs, 1, indexManku, 0, 2, 0)
+
+	if result.Index != indexManku || result.Tables != 2 {
+		t.Fatalf("unexpected identity fields: %+v", result)
+	}
+	if result.TotalActual != result.TruePositive {
+		t.Fatalf("expected manku index to achieve 100%% recall, got %+v", result)
+	}
+	if result.RecallPct != 100.0 {
+		t.Fatalf("expected 100%% recall for manku index with tables >= k+1: got %.2f%%", result.RecallPct)
+	}
+	if result.IndexComps <= 0 || result.IndexComps > result.BruteComps {
+		t.Fatalf("unexpected manku comparison count: %+v", result)
+	}
+}
+
 func TestEvalIndexValues_RejectsBruteAndInvalidModes(t *testing.T) {
-	got, err := evalIndexValues("lsh,paper,lsh")
+	got, err := evalIndexValues("lsh,paper,manku,lsh")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := []string{indexLSH, indexPaper}
+	want := []string{indexLSH, indexPaper, indexManku}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected index values: got=%v want=%v", got, want)
 	}

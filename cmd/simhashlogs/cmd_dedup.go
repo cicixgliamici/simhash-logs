@@ -29,7 +29,8 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	printRaw := fs.Bool("print-raw", false, "Print raw lines alongside normalized lines")
 	jsonOut := fs.Bool("json", false, "Print matches as JSON")
 	useLSH := fs.Bool("use-lsh", false, "Use LSH candidate generation before exact Hamming verification")
-	indexMode := fs.String("index", indexBrute, "Candidate index to use: brute, lsh, or paper")
+	indexMode := fs.String("index", indexBrute, "Candidate index to use: brute, lsh, paper (or paper-v1), or manku")
+	weightingFlag := fs.String("weighting", weightingUniform, "Token weighting scheme: uniform (historical frequency) or idf/tfidf (downweights boilerplate tokens)")
 	bandsFlag := fs.Int("bands", 0, "Number of LSH bands (0 = auto, default auto is k+1)")
 	tablesFlag := fs.Int("tables", 0, "Number of paper-style permutation tables (0 = auto, default auto is k+1)")
 	windowFlag := fs.Int("window", 0, "Paper-style sorted-table scan window per table (0 = auto)")
@@ -49,6 +50,10 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		mode = indexLSH
 	}
 	if err := validateIndexMode(mode); err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 2
+	}
+	if err := validateWeighting(*weightingFlag); err != nil {
 		fmt.Fprintf(stderr, "%v\n", err)
 		return 2
 	}
@@ -75,7 +80,7 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	prepStart := time.Now()
-	records := buildRecords(lines)
+	records := buildRecordsWithWeighting(lines, *weightingFlag)
 	sigs := make([]uint64, len(records))
 	for i := range records {
 		sigs[i] = records[i].Sig
@@ -94,7 +99,13 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			bands = defaultTables(*k)
 		}
 		pairs, comparisons = search.LSHNearDuplicates(sigs, *k, bands)
-	} else if mode == indexPaper {
+	} else if mode == indexManku {
+		tables := *tablesFlag
+		if tables == 0 {
+			tables = defaultTables(*k)
+		}
+		pairs, comparisons = search.MankuNearDuplicates(sigs, *k, tables)
+	} else if mode == indexPaper || mode == indexPaperV1 {
 		tables := *tablesFlag
 		if tables == 0 {
 			tables = defaultTables(*k)
@@ -126,7 +137,13 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			} else {
 				bands = *bandsFlag
 			}
-		} else if mode == indexPaper {
+		} else if mode == indexManku {
+			if *tablesFlag == 0 {
+				tables = defaultTables(*k)
+			} else {
+				tables = *tablesFlag
+			}
+		} else if mode == indexPaper || mode == indexPaperV1 {
 			if *tablesFlag == 0 {
 				tables = defaultTables(*k)
 			} else {
@@ -139,8 +156,8 @@ func runDedup(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			}
 		}
 		fmt.Fprintf(stderr,
-			"stats mode=%s bands=%d tables=%d window=%d records=%d comparisons=%d matches=%d prep_ms=%d search_ms=%d\n",
-			mode, bands, tables, window, len(records), comparisons, len(pairs),
+			"stats mode=%s weighting=%s bands=%d tables=%d window=%d records=%d comparisons=%d matches=%d prep_ms=%d search_ms=%d\n",
+			mode, *weightingFlag, bands, tables, window, len(records), comparisons, len(pairs),
 			prepElapsed.Milliseconds(), searchElapsed.Milliseconds(),
 		)
 	}

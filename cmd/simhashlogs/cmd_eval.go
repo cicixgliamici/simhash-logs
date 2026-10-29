@@ -37,7 +37,8 @@ func runEval(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	k := fs.Int("k", 3, "Max Hamming distance threshold for near-duplicates")
 	kValuesFlag := fs.String("k-values", "", "Comma-separated k values for evaluation sweep (overrides -k)")
 	maxLines := fs.Int("max", 5000, "Max number of lines to read")
-	indexValuesFlag := fs.String("index-values", "lsh,paper", "Comma-separated candidate indexes to evaluate: lsh,paper")
+	indexValuesFlag := fs.String("index-values", "lsh,paper", "Comma-separated candidate indexes to evaluate: lsh,paper,manku")
+	weightingFlag := fs.String("weighting", weightingUniform, "Token weighting scheme: uniform (historical frequency) or idf/tfidf (downweights boilerplate tokens)")
 	bandsFlag := fs.Int("bands", 0, "Number of LSH bands (0 = auto, default auto is k+1)")
 	bandsValuesFlag := fs.String("bands-values", "", "Comma-separated band counts for evaluation sweep (0 = auto per k)")
 	tablesFlag := fs.Int("tables", 0, "Number of paper-style permutation tables (0 = auto, default auto is k+1)")
@@ -58,6 +59,10 @@ func runEval(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "invalid -index-values: %v\n", err)
 		return 2
 	}
+	if err := validateWeighting(*weightingFlag); err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 2
+	}
 
 	lines, err := readLines(*inputPath, *maxLines, stdin)
 	if err != nil {
@@ -65,7 +70,7 @@ func runEval(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	records := buildRecords(lines)
+	records := buildRecordsWithWeighting(lines, *weightingFlag)
 	sigs := make([]uint64, len(records))
 	for i := range records {
 		sigs[i] = records[i].Sig
@@ -97,6 +102,15 @@ func runEval(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					}
 					results = append(results, evaluateIndex(sigs, kv, index, bands, 0, 0))
 				}
+				continue
+			}
+
+			if index == indexManku {
+				tables := *tablesFlag
+				if tables == 0 {
+					tables = defaultTables(kv)
+				}
+				results = append(results, evaluateIndex(sigs, kv, index, 0, tables, 0))
 				continue
 			}
 
@@ -135,8 +149,10 @@ func runEval(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "Index:             %s\n", r.Index)
 		if r.Index == indexLSH {
 			fmt.Fprintf(stdout, "LSH Bands:         %d\n", r.Bands)
-		} else if r.Index == indexPaper {
-			fmt.Fprintf(stdout, "Paper Tables:      %d\n", r.Tables)
+		} else if r.Index == indexManku {
+			fmt.Fprintf(stdout, "Manku Tables:      %d (Pigeonhole Prefix)\n", r.Tables)
+		} else if r.Index == indexPaper || r.Index == indexPaperV1 {
+			fmt.Fprintf(stdout, "Paper Tables:      %d (v1 Heuristic)\n", r.Tables)
 			fmt.Fprintf(stdout, "Paper Window:      %d\n", r.Window)
 		}
 		fmt.Fprintf(stdout, "\nBrute Force Ground Truth:\n")
@@ -174,7 +190,9 @@ func evaluateIndex(sigs []uint64, k int, index string, bands, tables, window int
 	var indexPairs []search.Pair
 	indexComps := 0
 	switch index {
-	case indexPaper:
+	case indexManku:
+		indexPairs, indexComps = search.MankuNearDuplicates(sigs, k, tables)
+	case indexPaper, indexPaperV1:
 		indexPairs, indexComps = search.PaperNearDuplicates(sigs, k, tables, window)
 	case indexLSH:
 		indexPairs, indexComps = search.LSHNearDuplicates(sigs, k, bands)
@@ -233,7 +251,7 @@ func evalIndexValues(raw string) ([]string, error) {
 			return nil, err
 		}
 		if value == indexBrute {
-			return nil, fmt.Errorf("eval indexes must be candidate indexes: lsh or paper")
+			return nil, fmt.Errorf("eval indexes must be candidate indexes: lsh, paper (or paper-v1), or manku")
 		}
 		if _, ok := seen[value]; ok {
 			continue

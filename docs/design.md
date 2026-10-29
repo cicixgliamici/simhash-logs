@@ -31,9 +31,10 @@ Important flags:
 - `-max` caps the number of input lines.
 - `-json` switches output to structured JSON.
 - `-use-lsh` enables LSH candidate generation before exact verification.
-- `-index` selects `brute`, `lsh`, or `paper` search for `dedup`.
+- `-index` selects `brute`, `lsh`, `paper` (or `paper-v1`), or `manku` search for `dedup`.
 - `-bands` controls the number of LSH bands; `0` means auto.
-- `-tables` and `-window` tune the paper-style sorted permutation index.
+- `-tables` tunes the number of tables for `manku` or `paper`.
+- `-window` tunes the scan window for the historical v1 `paper` index.
 - `eval -k-values`, `eval -index-values`, and `eval -bands-values` run parameter sweeps.
 
 ### `internal/normalize`
@@ -55,9 +56,12 @@ placeholder tokens such as `<ip>` and `<num>`.
 
 ### `internal/simhash`
 
-SimHash64 hashes each token, updates a 64-dimensional accumulator, and emits a
-64-bit signature. Repeated tokens contribute repeatedly, so token frequency
-affects the final fingerprint.
+Provides SimHash fingerprinting and token weighting:
+
+- `SimHash64`: Historical baseline using integer accumulators with uniform token frequency.
+- `SimHash64Weighted`: Arbitrary weighted SimHash directly implementing Charikar (2002).
+- `IDFModel`: Information-theoretic model learning smoothed IDF weights $\ln\left(\frac{N+1}{\text{DF}+1}\right) + 1.0$ across the corpus. It attenuates boilerplate noise and concentrates bit variance on rare semantic tokens.
+- Controlled via the `-weighting uniform|idf` CLI flag.
 
 ### `internal/search`
 
@@ -67,10 +71,13 @@ The search package contains:
 - `BandIndex`, an in-memory LSH-style candidate index.
 - `LSHNearDuplicates`, which retrieves candidates and then verifies exact
   Hamming distance.
-- `PermutationIndex`, an experimental sorted fingerprint-table index inspired
-  by Manku et al.
-- `PaperNearDuplicates`, which scans sorted-table neighborhoods and then
-  verifies exact Hamming distance.
+- `MankuIndex` and `MankuNearDuplicates`, the paper-faithful implementation of
+  Manku et al. (2007) Section 3.1: Pigeonhole Principle block partitioning into $p = k + 1$
+  disjoint blocks, sorted permutation tables, binary range search for contiguous prefix matches,
+  and guaranteed 100% recall.
+- `PermutationIndex` and `PaperNearDuplicates`, the historical v1 heuristic prototype
+  preserved as an evolutionary baseline to demonstrate the transition from heuristic window
+  scans to combinatorial prefix ranges.
 
 ## Why Brute Force Still Matters
 

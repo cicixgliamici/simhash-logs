@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
 
@@ -11,20 +12,53 @@ import (
 	"simhash-logs/internal/tokenize"
 )
 
-func buildRecords(lines []string) []search.Record {
-	records := make([]search.Record, 0, len(lines))
+const (
+	weightingUniform = "uniform"
+	weightingIDF     = "idf"
+	weightingTFIDF   = "tfidf"
+)
 
-	for _, line := range lines {
+func validateWeighting(w string) error {
+	switch w {
+	case weightingUniform, weightingIDF, weightingTFIDF, "":
+		return nil
+	default:
+		return fmt.Errorf("invalid weighting %q: must be uniform, idf, or tfidf", w)
+	}
+}
+
+// buildRecords computes signatures using the historical uniform weighting baseline.
+func buildRecords(lines []string) []search.Record {
+	return buildRecordsWithWeighting(lines, weightingUniform)
+}
+
+// buildRecordsWithWeighting computes signatures with the selected token weighting scheme.
+// When idf or tfidf is chosen, an IDFModel is learned over the tokenized lines,
+// significantly downweighting ubiquitous boilerplate tokens in the fingerprints.
+func buildRecordsWithWeighting(lines []string, weighting string) []search.Record {
+	records := make([]search.Record, len(lines))
+	tokenList := make([][]string, len(lines))
+
+	for i, line := range lines {
 		normalized := normalize.Line(line)
 		tokens := tokenize.Simple(normalized)
-		sig := simhash.SimHash64(tokens)
-
-		records = append(records, search.Record{
+		tokenList[i] = tokens
+		records[i] = search.Record{
 			Raw:        line,
 			Normalized: normalized,
 			Tokens:     tokens,
-			Sig:        sig,
-		})
+		}
+	}
+
+	if weighting == weightingIDF || weighting == weightingTFIDF {
+		idfModel := simhash.NewIDFModel(tokenList)
+		for i := range records {
+			records[i].Sig = idfModel.Fingerprint(records[i].Tokens)
+		}
+	} else {
+		for i := range records {
+			records[i].Sig = simhash.SimHash64(records[i].Tokens)
+		}
 	}
 
 	return records

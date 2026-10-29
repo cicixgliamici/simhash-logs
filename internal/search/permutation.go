@@ -6,6 +6,28 @@ import (
 	"simhash-logs/internal/simhash"
 )
 
+// [HISTORICAL PROTOTYPE / HEURISTIC v1]
+//
+// PermutationIndex represents the initial v1 prototype of a sorted table index.
+// It explores the sorted-table concept by applying deterministic bit rotations
+// and scanning a numerical window around sort.Search insertion points.
+//
+// Theoretical Note & Known Limitations:
+// In integer sort order, numerical proximity does not correspond to Hamming proximity
+// (e.g., 0b00001111 and 0b00010000 are adjacent numerically with diff=1, but differ by 5 bits,
+// whereas 0 and 2^63 differ by only 1 bit in Hamming distance but are separated by 2^63 integers).
+// As a result, scanning an arbitrary [pos - window, pos + window] interval is an empirical heuristic
+// that lacks theoretical recall guarantees.
+//
+// SUPERSEDED BY:
+// MankuIndex in manku.go, which implements the true combinatorial algorithm from Section 3.1
+// of Manku, Jain, and Das Sarma (2007) based on the Pigeonhole Principle (partitioning 64 bits
+// into p = k + 1 blocks, sorting by permuted prefix, and retrieving exact prefix matches via
+// binary range search). MankuIndex provides 100% guaranteed recall with no heuristic windows.
+//
+// This v1 implementation is intentionally preserved as a benchmark baseline and historical artifact
+// to showcase the progression from an initial heuristic prototype to a mathematically rigorous design.
+
 type permutationEntry struct {
 	// Key is the fingerprint after applying one deterministic table-specific
 	// permutation. Sorting by this key makes nearby keys cheap to scan.
@@ -16,9 +38,7 @@ type permutationEntry struct {
 }
 
 // PermutationIndex stores multiple sorted views of the same fingerprints.
-// It follows the sorted-table idea from Manku et al.: each table applies a
-// deterministic bit permutation, sorts fingerprints by that permuted key, and
-// candidate lookup scans a small neighborhood around the query key.
+// [Deprecated / Historical v1]: Use MankuIndex in manku.go for guaranteed recall.
 type PermutationIndex struct {
 	Tables [][]permutationEntry
 }
@@ -112,8 +132,9 @@ func (pi *PermutationIndex) Candidates(sig uint64, self, window int) []int {
 	return out
 }
 
-// PaperNearDuplicates uses a sorted permutation-table index to generate
-// candidates, followed by exact Hamming verification.
+// PaperNearDuplicates uses the historical v1 heuristic sorted permutation-table
+// index to generate candidates, followed by exact Hamming verification.
+// [Historical / v1 Heuristic]: Superseded by MankuNearDuplicates in manku.go.
 func PaperNearDuplicates(sigs []uint64, k, tables, window int) ([]Pair, int) {
 	if len(sigs) == 0 {
 		return nil, 0

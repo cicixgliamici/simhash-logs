@@ -240,6 +240,45 @@ func TestRun_DedupWithPaperIndex(t *testing.T) {
 	}
 }
 
+func TestRun_DedupWithMankuIndex(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
+
+	content := strings.Join([]string{
+		"2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2",
+		"2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2",
+		"2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runDedup([]string{
+		"-input", path,
+		"-k", "6",
+		"-max", "100",
+		"-json",
+		"-index", "manku",
+		"-tables", "7",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "mode=manku") || !strings.Contains(stderr.String(), "tables=7") {
+		t.Fatalf("expected manku stats, got stderr: %q", stderr.String())
+	}
+
+	var matches []matchOutput
+	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
+		t.Fatalf("invalid json output: %v\noutput=%s", err, stdout.String())
+	}
+	if len(matches) == 0 {
+		t.Fatalf("expected at least one match with manku index, got 0")
+	}
+}
+
 func TestRun_DedupRejectsInvalidIndex(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -434,5 +473,59 @@ func TestRun_LSHWithCustomBands(t *testing.T) {
 	}
 	if len(matches) == 0 {
 		t.Fatalf("expected at least one match with lsh, got 0")
+	}
+}
+
+func TestRun_DedupWithIDFWeighting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.log")
+
+	content := strings.Join([]string{
+		"2026-02-21T10:01:02Z sshd[12345]: Failed password for invalid user admin from 192.168.1.20 port 55221 ssh2",
+		"2026-02-21T10:01:05Z sshd[12346]: Failed password for invalid user admin from 192.168.1.21 port 55222 ssh2",
+		"2026-02-21T10:02:10Z kernel: eth0 link up at 1000Mbps",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp log: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runDedup([]string{
+		"-input", path,
+		"-k", "6",
+		"-max", "100",
+		"-weighting", "idf",
+		"-json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "weighting=idf") {
+		t.Fatalf("expected stats to contain weighting=idf, got: %q", stderr.String())
+	}
+
+	var matches []matchOutput
+	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
+		t.Fatalf("invalid json output: %v\noutput=%s", err, stdout.String())
+	}
+	if len(matches) == 0 {
+		t.Fatalf("expected at least one match with idf weighting, got 0")
+	}
+}
+
+func TestRun_DedupRejectsInvalidWeighting(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := runDedup([]string{
+		"-weighting", "bogus",
+	}, strings.NewReader("line\n"), &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "invalid weighting") {
+		t.Fatalf("expected invalid weighting error, got stderr=%q", stderr.String())
 	}
 }

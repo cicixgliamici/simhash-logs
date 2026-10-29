@@ -3,17 +3,19 @@ package main
 import "fmt"
 
 const (
-	indexBrute = "brute"
-	indexLSH   = "lsh"
-	indexPaper = "paper"
+	indexBrute   = "brute"
+	indexLSH     = "lsh"
+	indexPaper   = "paper"
+	indexPaperV1 = "paper-v1"
+	indexManku   = "manku"
 )
 
 func validateIndexMode(mode string) error {
 	switch mode {
-	case indexBrute, indexLSH, indexPaper:
+	case indexBrute, indexLSH, indexPaper, indexPaperV1, indexManku:
 		return nil
 	default:
-		return fmt.Errorf("index must be one of brute, lsh, paper")
+		return fmt.Errorf("index must be one of brute, lsh, paper (or paper-v1), manku")
 	}
 }
 
